@@ -29,6 +29,16 @@ ALIAS_PATH = ROOT / "news" / "aliases.json"
 
 # Folded before comparison. ß is the one that bit: unicodedata's NFD decomposition
 # handles é -> e but leaves ß untouched, because it isn't an accented letter.
+# How far ahead on attention a candidate must be to win a colliding display name
+# outright. "Attention" is ownership x price, not ownership alone: a 4.0m bench keeper
+# can carry 4% ownership as a squad filler without ever being a player anyone discusses.
+# Alex Palmer is exactly that, and on raw ownership he is only 4.3x behind Cole Palmer,
+# close enough to block the match. Weighted by price the gap is 10x and the right answer
+# falls out. Calibrated on the real 2026/27 collisions: resolves Palmer, Hughes, Thomas,
+# Gomez, James and Wilson; correctly declines Martinez, where a Chelsea keeper and a Man
+# Utd defender are both playing every minute at the same price.
+DISAMBIGUATION_RATIO = 5.0
+
 _FOLD = {"ß": "ss", "ø": "o", "đ": "d", "ł": "l", "æ": "ae", "œ": "oe", "'": "", "-": " "}
 
 
@@ -70,6 +80,8 @@ def load_players() -> list[dict]:
             "position": positions[e["element_type"]],
             "now_cost": e["now_cost"] / 10,
             "status": e["status"],
+            "owned": float(e["selected_by_percent"]),
+            "minutes": e["minutes"],
         }
         for e in bootstrap["elements"]
     ]
@@ -128,6 +140,23 @@ def resolve(
         if len(narrowed) == 1:
             return {"status": "ok", "player": narrowed[0], "candidates": [], "raw": name}
     if len(hits) > 1:
+        # Display names are not unique — 17 collide in 2026/27 — but most collisions are
+        # not real ambiguity. Nobody discussing "Palmer" means Ipswich's fourth-choice
+        # keeper; they mean Chelsea's 18%-owned midfielder. A candidate that dwarfs the
+        # field on attention wins outright.
+        def attention(h: dict) -> float:
+            return h["owned"] * h["now_cost"]
+
+        ranked = sorted(hits, key=lambda h: -attention(h))
+        top, second = ranked[0], ranked[1]
+        # Floor the denominator so two equally irrelevant players don't resolve on noise.
+        dominant = attention(top) >= DISAMBIGUATION_RATIO * max(attention(second), 0.25)
+        if dominant:
+            out = {"status": "ok", "player": top, "candidates": [], "raw": name,
+                   "auto_disambiguated": [h["full_name"] for h in ranked[1:]]}
+            if team_hint and fold(top["team"]) != fold(team_hint):
+                out["team_hint_mismatch"] = {"claimed": team_hint, "actual": top["team"]}
+            return out
         return {"status": "ambiguous", "player": None, "candidates": hits, "raw": name}
     out = {"status": "ok", "player": hits[0], "candidates": [], "raw": name}
     # A hint that disagrees with the roster means the transcript said something false —
