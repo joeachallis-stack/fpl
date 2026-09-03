@@ -55,13 +55,19 @@ FEEDS = {
     "fpltoolbox": "https://fpltoolbox.com/feed/",
 }
 
+# Resolve a channel ID from the channel page's "externalId" field, NOT from the first
+# "channelId" string in the markup — that one also appears for related and featured
+# channels, and picking it silently pulls somebody else's uploads. fplblackbox was wrong
+# for exactly this reason until 2026-09-03: it pointed at "BlackBox Gaming", a separate
+# channel from the same brand, and ingested five horror-game livestreams as FPL analysis.
+#
 # Named trusted creators with their own channel, verified live 2026-09-03. Two more
 # named in the design discussion (Ben Crellin, BigMan Bakar) don't have their own
 # channel — they appear on Fantasy Football Hub's shared one — and aren't included
 # here since that needs filtering by name, not a straight per-channel pull.
 VIDEO_CHANNELS = {
     "fplharry": "UCcPWnCj5AKC19HaySZjb25g",
-    "fplblackbox": "UC-8A-aan407eUTA1k40lzDQ",
+    "fplblackbox": "UCGJ8-xqhOLwyJNuPMsVoQWQ",
     "fplgeneral": "UCxj4WVoWBuwXPGJsvUFPVig",
     "fplraptor": "UC54QLWzsMifTRjNQ02z5pCw",
     "giannibuttice": "UCC2c5yVCFu7FKKyt6-_3uLQ",

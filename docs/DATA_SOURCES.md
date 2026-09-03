@@ -136,6 +136,15 @@ way — the YouTube Data API's caption-download endpoint requires OAuth and only
 for videos the authenticated account owns, so it never covers third-party creators
 regardless of which extraction method is used.
 
+**Channel IDs: read `externalId`, not the first `channelId` in the page.** A channel
+page's markup contains `channelId` strings for related and featured channels too, so
+grabbing the first match can silently subscribe you to somebody else's uploads. This
+happened: `fplblackbox` pointed at "BlackBox Gaming" — a separate channel from the same
+brand — and ingested five horror-game livestreams as FPL analysis before anyone noticed.
+Corrected 2026-09-03 to `UCGJ8-xqhOLwyJNuPMsVoQWQ` by reading `externalId` from
+`youtube.com/@FPLBlackBox/videos`. Verify a new channel by its feed's `<title>`, not by
+the handle resolving without error — the wrong ID resolved fine and returned real videos.
+
 **Built:** `scripts/fetch_news.py` pulls upload feeds for 5 of the named creators (all
 "Easy" tier — Ben Crellin and BigMan Bakar excluded, no dedicated channel to pull) and
 attempts a transcript for every new video via `yt_dlp`'s Python API. First real run
