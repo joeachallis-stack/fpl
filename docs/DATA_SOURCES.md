@@ -44,6 +44,28 @@ require FBref or a price-tracking site are now native:
 One trap: **`ep_next`/`ep_this` are not projections.** As of GW3 they equal `form` exactly
 for every player sampled. Don't wire them in as expected points.
 
+## RSS news feeds (ingested, checked 2026-09-03)
+
+`scripts/fetch_news.py` pulls these on every `fetch_data.py` run and appends new
+items to `news/entries.jsonl` (git-tracked — see `news/README.md` for why). All
+three are free, headline-and-link only — none exposes the underlying analysis:
+
+| Source | Feed URL | Notes |
+|---|---|---|
+| Fantasy Football Scout | `fantasyfootballscout.co.uk/feed/` | The main FPL analysis site. Feed gives headline + short summary + link; the actual "Scout Picks" content is a Members Area paywall. |
+| FPL Hints | `fplhints.com/blog-feed.xml` | Smaller independent FPL blog. |
+| FPL Toolbox | `fpltoolbox.com/feed/` | Smaller independent FPL blog. |
+
+Verify these URLs still resolve if the feed starts returning nothing — WordPress
+sites occasionally move `/feed/` or redirect apex↔`www`.
+
+**Not yet ingested — scrape-only, no free RSS/API, deliberately deferred:**
+`premierinjuries.com` (structured injury table with return dates — best free injury
+source found, but no feed), predicted-lineup pages (RotoWire, `fpledits.com`), and
+FFS's own team-news page. `WebSearch` at decision time covers these for now, per
+the weekly workflow; a scraper is the natural fast-follow once the RSS pattern has
+run for a few weeks.
+
 ## Third-party (for context the official API genuinely doesn't have: odds, predicted XIs, DGWs)
 
 - **Fantasy Football Scout** (fantasyfootballscout.co.uk) — FDR ticker, clean sheet /

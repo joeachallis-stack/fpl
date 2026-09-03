@@ -72,6 +72,9 @@ scripts/
   fetch_data.py       — pull bootstrap-static, fixtures, event-status, entry, history,
                         transfers, picks, per-player summaries, small-league standings;
                         also snapshots bootstrap.json daily (see data/snapshots/ below)
+                        and runs fetch_news.py (see news/ below) as part of the same fetch
+  fetch_news.py       — pull free FPL-adjacent RSS feeds, append new items to
+                        news/entries.jsonl; runs automatically from fetch_data.py
   state.py            — derived state: banked free transfers, chip windows, next deadline
   check_team.py       — pre-deadline checklist (legal XI, flags, captaincy, blanks, bench)
   journal.py          — decision journal: log recommendations, resolve realized outcomes
@@ -84,6 +87,10 @@ data/                 — gitignored cache of fetched API responses
 journal/
   entries.jsonl        — one JSON object per logged recommendation. Tracked in git,
                         unlike data/ — an authored record, not an API cache.
+news/
+  entries.jsonl        — one JSON object per RSS item (headline, link, summary), append-
+                        only. Tracked in git, unlike data/ — feed items are unrecoverable
+                        once they scroll off the source, same reasoning as snapshots/.
 docs/
   IDEAS.md            — objective, backlog, open questions, build order
   PRIOR_ART.md        — literature/solver review + cross-check against verified data

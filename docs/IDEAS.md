@@ -84,6 +84,17 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
    scoring is against the counterfactual, not zero. Entries in `journal/entries.jsonl`,
    tracked in git. Tested end-to-end against the real GW2 captaincy call (João Pedro
    over Rogers, resolved delta +4) before being cleared for the real season.
+5. **`fetch_news.py`** — news log, added 2026-09-03. Pulls three free RSS feeds
+   (Fantasy Football Scout, FPL Hints, FPL Toolbox) and appends new items to
+   `news/entries.jsonl` — headline, link, summary, published date, and when this
+   project fetched it. Runs automatically from `fetch_data.py`, no separate
+   schedule. Git-tracked, not gitignored: RSS feeds only show recent items, so an
+   entry not caught before it scrolls off is gone for good — the same
+   unrecoverability problem set-piece order had before `data/snapshots/`. Headlines
+   only, no analysis or judgment — that's the LLM layer's job, not this script's.
+   Injury data (`premierinjuries.com`) and predicted lineups have no free feed and
+   are deliberately not scraped yet; see `docs/DATA_SOURCES.md` for the candidates
+   and `WebSearch` covers them for now.
 
 ## Next up
 

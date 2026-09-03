@@ -14,6 +14,8 @@ from pathlib import Path
 
 import requests
 
+import fetch_news
+
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 SNAPSHOT_DIR = DATA_DIR / "snapshots"
@@ -99,6 +101,16 @@ def main() -> None:
     save_snapshot(bootstrap)
     save("fixtures.json", fetch(f"{BASE}/fixtures/"))
     save("event_status.json", fetch(f"{BASE}/event-status/"))
+
+    # Free-text FPL news (RSS headlines, not official API data). Tied to this same
+    # run rather than its own schedule — see fetch_news.py's docstring for why.
+    # Third-party sites are flakier than the official API; a dead feed shouldn't
+    # abort the rest of the fetch.
+    try:
+        fetch_news.main()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  news: fetch_news.py failed entirely ({exc}) — continuing without it")
+
     entry = fetch(f"{BASE}/entry/{team_id}/")
     save("entry.json", entry)
     save("history.json", fetch(f"{BASE}/entry/{team_id}/history/"))
