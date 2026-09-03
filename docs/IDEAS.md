@@ -282,6 +282,31 @@ itself (the diff and the alert) is still open; there's only one day of history s
 
 ## Parked / open questions
 
+- **Fit the minutes-model decay constant.** `DECAY_HALFLIFE_GWS = 5` in `minutes.py` is
+  a placeholder, not a measurement. It can't be fitted yet: at GW3 every observation is
+  within 15% of every other under any half-life you pick, so the data cannot tell two
+  candidate values apart. **Revisit around GW10**, when there's enough spread for the
+  choice to bite. Fit it against `minutes/gwNN.jsonl` — vary the constant, re-score the
+  frozen predictions, keep what minimises error. Do not reuse the `0.85^(t-1)`
+  horizon discount: that one prices *future* gameweeks, this one weights *past*
+  observations. Different questions that happen to share a shape.
+
+- **Prior-season per-gameweek history (the vaastav backfill).** The FPL API gives
+  per-gameweek rows for the current season only; earlier seasons are aggregates in
+  `history_past` (minutes and starts totals, no per-match rows). So in August the minutes
+  model has nothing to work from and everything falls back to price. Fixing it means
+  wiring in vaastav's dataset — already verified for the backtest split: `data/2025-26/
+  gws/merged_gw.csv`, 29,757 rows, GW1-38, all DefCon columns.
+
+  **Not urgent this season** — the gap closes on its own by about GW5 as real rows
+  accumulate, and it's now GW3. It matters at the *start of next season*, when the model
+  would otherwise open blind again. That's the natural deadline for doing it.
+
+  One wrinkle to know before starting: **FPL reassigns element IDs every season**, so
+  joining last season's rows to this season's players goes through `element_code`, which
+  is stable and which `history_past` exposes. Joining on `element` would silently match
+  the wrong players.
+
 - **Authenticated `my-team` endpoint.** `check_team.py` can only validate the last *saved*
   squad — transfers made in the app since the last deadline are invisible. Fixing that
   needs a session cookie in the repo. Worth it? Probably not for a hobby project, but it's
