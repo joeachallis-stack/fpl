@@ -19,8 +19,10 @@ The fallback stack for thin or absent evidence is specified in docs/IDEAS.md
 ("Settled 2026-09-03 — the fallback stack") and implemented in predict() below.
 
 Usage:
-    python scripts/minutes.py            # write data/minutes.json, print a summary
-    python scripts/minutes.py --show 20  # also print the top 20 by expected minutes
+    python scripts/minutes.py                    # write data/minutes.json, print a summary
+    python scripts/minutes.py --show 20          # also print the top 20 by expected minutes
+    python scripts/minutes.py archive            # freeze this GW's predictions to minutes/
+    python scripts/minutes.py resolve --gw 3     # fill in what actually happened
 """
 from __future__ import annotations
 
@@ -32,6 +34,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "minutes.json"
+ARCHIVE_DIR = ROOT / "minutes"
 
 MODEL_VERSION = "empirical-v1"
 
@@ -160,6 +163,10 @@ def predict(player: dict, history: list[dict], current_gw: int, owned: bool) -> 
         "effective_n": round(eff_n, 3),
         "status": status,
         "chance_of_playing_next_round": chance,
+        # Inputs the rules read, frozen alongside the prediction. Without these the
+        # archive can score the model but can't retire the constants inside it.
+        "season_minutes": player["minutes"],
+        "now_cost": player["now_cost"],
         "insufficient_evidence": False,
         "override": None,
     }
@@ -210,11 +217,78 @@ def predict(player: dict, history: list[dict], current_gw: int, owned: bool) -> 
     return record
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--show", type=int, default=0, help="Print the top N by expected minutes")
-    args = parser.parse_args()
+def archive_path(gw: int) -> Path:
+    return ARCHIVE_DIR / f"gw{gw:02d}.jsonl"
 
+
+def cmd_archive(payload: dict) -> None:
+    """Freeze this gameweek's predictions, inputs included, before the deadline.
+
+    The inputs matter as much as the prediction. A row that records only "we said 22
+    minutes" can score the model; a row that also records "he was flagged 75% fit with 0
+    minutes played" can go on to replace the constants the rule is built from.
+    """
+    gw = payload["meta"]["gw"]
+    path = archive_path(gw)
+    if path.exists():
+        print(f"{path.relative_to(ROOT)} already exists — not overwriting a frozen prediction")
+        print("  delete it by hand if you really mean to re-freeze")
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        for record in payload["players"].values():
+            row = dict(record)
+            row["model_version"] = payload["meta"]["model_version"]
+            row["generated_at"] = payload["meta"]["generated_at"]
+            row["actual_minutes"] = None
+            row["actual_band"] = None
+            f.write(json.dumps(row) + "\n")
+    print(f"froze {len(payload['players'])} predictions to {path.relative_to(ROOT)}")
+
+
+def cmd_resolve(gw: int) -> None:
+    """Fill in what actually happened, from the cached per-player histories."""
+    path = archive_path(gw)
+    if not path.exists():
+        raise SystemExit(f"no archive for GW{gw} — run `minutes.py archive` before the deadline")
+
+    with open(path) as f:
+        rows = [json.loads(line) for line in f if line.strip()]
+
+    resolved = missing = 0
+    for row in rows:
+        summary = DATA_DIR / f"element_summary/{row['element']}.json"
+        if not summary.exists():
+            missing += 1
+            continue
+        with open(summary) as f:
+            played = [h for h in json.load(f)["history"] if h["round"] == gw]
+        if not played:
+            missing += 1
+            continue
+        # A player can appear twice in a double gameweek; minutes are the season's total
+        # for that round, so sum them.
+        actual = sum(h["minutes"] for h in played)
+        row["actual_minutes"] = actual
+        row["actual_band"] = band(actual)
+        resolved += 1
+
+    with open(path, "w") as f:
+        for row in rows:
+            f.write(json.dumps(row) + "\n")
+
+    scored = [r for r in rows if r["actual_minutes"] is not None]
+    if scored:
+        mae = sum(abs(r["actual_minutes"] - r["exp_minutes"]) for r in scored) / len(scored)
+        hit = sum(1 for r in scored if r["actual_band"] == max(r["bands"], key=r["bands"].get))
+        print(f"GW{gw}: resolved {resolved}, unresolved {missing}")
+        print(f"  mean absolute error   {mae:.1f} minutes")
+        print(f"  modal band correct    {hit}/{len(scored)} ({hit / len(scored):.0%})")
+    else:
+        print(f"GW{gw}: nothing resolved — has the gameweek been played and fetched?")
+
+
+def build(show: int = 0) -> dict:
     bootstrap = load("bootstrap.json")
     current_gw = next((e["id"] for e in bootstrap["events"] if e.get("is_next")), None)
     if current_gw is None:
@@ -259,13 +333,35 @@ def main() -> None:
     for src, n in sorted(by_source.items(), key=lambda kv: -kv[1]):
         print(f"  {src:<24} {n:>4}")
 
-    if args.show:
-        ranked = sorted(records.values(), key=lambda r: -r["exp_minutes"])[: args.show]
+    if show:
+        ranked = sorted(records.values(), key=lambda r: -r["exp_minutes"])[:show]
         print(f"\n{'player':<16}{'mins':>6}{'p(0)':>7}{'p(1-59)':>9}{'p(60+)':>8}  source")
         for r in ranked:
             b = r["bands"]
             print(f"{r['web_name']:<16}{r['exp_minutes']:>6.0f}{b['p_zero']:>7.0%}"
                   f"{b['p_1_59']:>9.0%}{b['p_60_plus']:>8.0%}  {r['source']}")
+
+    return payload
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--show", type=int, default=0, help="Print the top N by expected minutes")
+    sub = parser.add_subparsers(dest="command")
+    sub.add_parser("archive", help="freeze this gameweek's predictions to minutes/")
+    p_resolve = sub.add_parser("resolve", help="fill in what actually happened for a settled GW")
+    p_resolve.add_argument("--gw", type=int, required=True)
+    args = parser.parse_args()
+
+    if args.command == "resolve":
+        cmd_resolve(args.gw)
+        return
+
+    payload = build(show=args.show)
+    if args.command == "archive":
+        cmd_archive(payload)
 
 
 if __name__ == "__main__":
