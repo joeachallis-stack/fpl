@@ -98,6 +98,94 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
 
 ## Next up
 
+### Minutes model, empirical version — design notes
+
+Hashed out 2026-09-03, across two sessions (this one, plus a separate design
+conversation whose scratch notes have been folded in here and deleted — nothing lost,
+just relocated so it's citable). Not built yet.
+
+**Why it has to be a distribution, not a single average:** every projection input —
+`expected_goals`, `expected_assists`, defensive-action counts — is a per-90 rate, which
+means nothing for next gameweek without knowing how many of those 90 minutes a player
+will actually get. Two reasons the average alone isn't enough: captaincy/chip risk
+depends on certainty, not just the mean (a player nailed on for 90' is a safer pick than
+one averaging the same points but sometimes hooked at 60', even at equal expected
+points); and DefCon is a step function, not a slope — a player subbed at 60' isn't "a
+third as likely" to clear the 10/12 threshold, they're close to zero. The DefCon
+sub-model needs the shape of the distribution, not its mean.
+
+**Decided:**
+- **Full player pool (~600), not a watchlist.** Widen `fetch_data.py`'s
+  `element_summary` pull from the owned squad (15) to everyone — a hand-maintained or
+  auto-filtered watchlist would miss a bench player who suddenly starts getting
+  minutes. Real backoff on this, not just a flat courtesy delay — retry-with-delay on a
+  429, not merely a pause between calls. The risk isn't slowness, it's losing API
+  access to the undocumented endpoint entirely, which would break everything else in
+  this project, not just the minutes model.
+- **Recency-weighted across all history, not a season-level blend.** Squad roles shift
+  *within* a season (transfers, injury returns, managerial changes), not just between
+  seasons, so a gameweek from last month should outweigh one from August regardless of
+  which season either fell in.
+- **Injury/suspension is a hard override, not a blended signal** — zeroed outright when
+  the status flag or fresher news says so, matching how `check_team.py` already treats
+  those statuses as a hard fail rather than a warning.
+- **Minutes buckets: started-and-finished, started-and-withdrawn, benched-and-used,
+  unused.** Already specified in the original data audit (§3, minutes model discussion)
+  — not an open question, just needed pulling into this section.
+
+**Explicitly not in v1** (decided in this conversation, 2026-09-02 — quoting Joe's own
+v1-scope message directly, since it exists only as chat history and nowhere else yet):
+- **The LLM/news override layer ships after the empirical version, not bundled in from
+  the start.** Sequencing it in from day one repeats the exact trap Joe named when
+  proposing v1 scope: *"the trap to avoid is spending until December on the minutes
+  model. It is the highest-value component and it will happily eat the season. Cheap
+  version now, measured error, then decide."* Ship the empirical distribution, get it
+  into the Monte Carlo loop, measure its error, *then* add overrides.
+- **Cup/European rotation risk is out of v1**, per the same message: "rotation and
+  congestion modelling" is explicitly on the out-of-v1 list. No clean free source exists
+  for UCL/UEL/UECL/domestic-cup fixture congestion anyway (flagged C in the original
+  audit) — a `starts`-vs-appearances proxy is the fallback if it's ever revisited.
+
+**Still open:**
+- Exact recency-decay constant. This is a *different* decay from the `0.85^(t-1)`
+  projection-horizon discount already locked in — one weights how much to trust old
+  training data, the other discounts future gameweeks. Don't reuse the same number for
+  both just because they're both "a decay."
+- Cold-start default for zero-history players (new arrivals, academy graduates):
+  proposed cautious mid-tier rather than assuming nailed-on. Not fully settled.
+- Where an LLM override gets logged: recommended as its own append-only log (same
+  `entries.jsonl` pattern as `journal/` and `news/`), not folded into
+  `journal/entries.jsonl` — that file's schema is built around scoring a decision
+  against its counterfactual, a different shape of record than "prediction changed from
+  X to Y because of Z."
+
+### YouTube as a news source — video discovery works, transcripts don't (checked
+2026-09-03)
+
+**Video-upload discovery is solid and legitimate** — same category as the blog RSS
+feeds already in `fetch_news.py`, not scraping in any adversarial sense. Every channel
+has a public feed at `youtube.com/feeds/videos.xml?channel_id=...`; verified live
+against FPL Harry's real channel, returning today's GW3 uploads with titles and publish
+times. The one implementation detail: the feed needs the channel's underlying ID, not
+its `@handle` — resolvable from the channel page.
+
+**Transcript pulling does not currently work from here, despite looking accessible on
+paper.** The mechanism (what libraries like `youtube-transcript-api` do under the hood)
+is: fetch the video's watch page, extract the signed caption-track URL embedded in it,
+fetch that URL. Every step up to the last one works — the signed URL extracts cleanly,
+no library needed. The fetch itself returns `HTTP 200`, `server: video-timedtext`,
+`content-length: 0` — silently empty, not blocked outright, which is worse than an
+error since code wouldn't catch it. Retried with full browser headers, same result.
+This matches a widely-reported failure mode for this endpoint from non-residential
+IPs. There's no official fallback either — the YouTube Data API's caption-download
+endpoint requires OAuth and only works for videos the authenticated account owns, so it
+can't substitute for third-party creators' captions.
+
+**Verdict: build the upload-detection half if the news layer gets extended to video
+creators; don't plan around auto-pulled transcripts** until someone gets one to return
+real content from wherever this project actually runs. Falls back to the same
+WebSearch-at-decision-time pattern already used for injuries and predicted lineups.
+
 ### 5. Odds-based fixture difficulty
 
 The real remaining data gap. FDR is a hand-assigned 1-5 integer; win probability and
