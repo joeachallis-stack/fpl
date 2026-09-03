@@ -51,6 +51,13 @@ When Joe asks "what should I do this week" / "review my team" / similar:
    what makes next week's review honest instead of hindsight-biased. Once a prior
    gameweek has settled, run `scripts/journal.py resolve --gw N` and read `show --open`
    for anything still outstanding before making this week's call.
+6b. Freeze the minutes model's predictions with `scripts/minutes.py archive` — **before
+   the deadline, every week**. It refuses to overwrite an existing file, because a
+   prediction you can rewrite afterwards isn't one. Once a gameweek has settled, run
+   `scripts/minutes.py resolve --gw N` for its error. This is the same discipline as
+   the journal one step up, aimed at the model rather than the decision: minutes is the
+   highest-leverage input and the one most likely to be quietly wrong, and the measured
+   error is what decides whether the LLM/news override layer is worth building at all.
 7. Recommend: hold vs. transfer (and who in/out, with the price/points-hit tradeoff),
    captain and vice-captain picks, and whether to bank the free transfer instead.
 8. State reasoning in terms of the actual data pulled, not generic FPL wisdom — cite the
@@ -78,6 +85,10 @@ scripts/
   state.py            — derived state: banked free transfers, chip windows, next deadline
   check_team.py       — pre-deadline checklist (legal XI, flags, captaincy, blanks, bench)
   journal.py          — decision journal: log recommendations, resolve realized outcomes
+  minutes.py          — empirical minutes model: per-player distribution over next GW's
+                        minutes. Role buckets in, scoring-aligned bands out (p_zero /
+                        p_1_59 / p_60_plus, around the 60-minute appearance cliff).
+                        `archive` freezes a GW's predictions, `resolve` scores them
   show_team.py        — print current squad + summary from cached data
 data/                 — gitignored cache of fetched API responses
   element_summary/    — per-player fixture history + remaining fixtures (owned players)
@@ -87,6 +98,12 @@ data/                 — gitignored cache of fetched API responses
 journal/
   entries.jsonl        — one JSON object per logged recommendation. Tracked in git,
                         unlike data/ — an authored record, not an API cache.
+minutes/
+  gwNN.jsonl           — the minutes model's frozen pre-deadline predictions for one
+                        gameweek, with the inputs that produced them. Tracked in git:
+                        data/minutes.json is overwritten every run, so an unrecorded
+                        prediction is gone. Storing the inputs is what lets the model's
+                        hardcoded constants be replaced by measurements later.
 news/
   entries.jsonl        — one JSON object per RSS item (headline, link, summary), append-
                         only. Tracked in git, unlike data/ — feed items are unrecoverable

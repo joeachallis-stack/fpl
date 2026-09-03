@@ -111,6 +111,42 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
 
 ## Next up
 
+### Minutes model, empirical version — BUILT 2026-09-03
+
+Shipped. `scripts/minutes.py`, output `data/minutes.json`, track record in `minutes/`.
+The design notes below are kept as the record of what was decided and why. What changed
+in the building of it:
+
+- **Output is scoring-aligned bands, not the role buckets themselves.** The four buckets
+  stay as the model's internal structure — role is what persists week to week, so it is
+  what carries the signal — but nothing downstream cares whether 70 minutes came off the
+  bench. It cares which side of the 60-minute cliff the player lands. So: four role
+  buckets in, `p_zero` / `p_1_59` / `p_60_plus` plus `exp_minutes` out.
+- **The recency-weighted-across-all-history plan hit a data wall.** `element_summary[]
+  .history` is **current season only** — 2 rows per player at GW3. Prior seasons appear
+  in `history_past` as season aggregates (minutes and starts totals, no appearance
+  count, no per-match rows). Per-gameweek history further back exists only in vaastav's
+  dataset, which is not wired in. Decision: this season only, threshold of 2 gameweeks,
+  rather than either counting an aggregate as evidence or taking on a second source.
+- **Decay constant parked, not fitted.** `DECAY_HALFLIFE_GWS = 5`. With two gameweeks
+  every weight is within 15% of every other, so nothing measurable turns on it yet.
+- **Bands floored at 5%.** Two observations can't establish certainty, and without a
+  floor a player who started twice reads as a 100% chance of 90 minutes — which flows
+  straight into captaincy risk, the main reason for wanting a distribution at all.
+  Distinct from smoothing a thin sample toward a prior: this declines to assert
+  certainty rather than inventing a number.
+
+**Known standing behaviour, accepted rather than fixed:** a regular starter carrying a
+fitness flag is cut hard — at GW3, Coyle had played 114 of a possible 180 minutes, was
+flagged 75% fit, and reads 22 expected minutes. The eased-in-off-the-bench assumption
+behind rule 2 fits a returning player, not one playing through a niggle. Left alone
+because it only touches already-flagged players, where news beats the model anyway.
+Worth being explicit that **this one does not self-correct with more gameweeks** — it's
+a fixed rule, not a sparse-data artifact. What retires it is the track record: with
+`status` and `chance_of_playing` frozen next to actual minutes, "what do 75%-flagged
+players really average?" becomes measurable, and the constant gets replaced rather than
+re-argued.
+
 ### Minutes model, empirical version — design notes
 
 Hashed out 2026-09-03, across two sessions (this one, plus a separate design
