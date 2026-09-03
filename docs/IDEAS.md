@@ -215,3 +215,9 @@ itself (the diff and the alert) is still open; there's only one day of history s
 - **Price-change alerting.** The data is native now (`price_change_projections`), so this
   is presentation, not modelling — probably just a line in the weekly output rather than
   its own feature.
+- **Fantasy Football Hub articles — tested and closed, not open.** No RSS (every real
+  feed path 404s) and a Next.js SPA even a plain scrape can't reach — real article text
+  loads client-side only. Would need a headless browser to fix, a materially bigger
+  dependency than `yt-dlp`. Not worth it: FFS already covers the dominant source,
+  Crellin's calendar is handled separately, his and Bakar's video content is already
+  excluded from the transcript build. Full writeup in `docs/DATA_SOURCES.md`.

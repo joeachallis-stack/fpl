@@ -75,13 +75,34 @@ now** (checked 2026-09-03; two of these are a harder problem than "no feed" impl
   depth/rotation-risk proxy), worth remembering if that ever becomes worth building.
 - Predicted-lineup pages (RotoWire, `fpledits.com`) and FFS's own team-news page — both
   load fine, not yet scraped, no feed for either.
+- `fantasyfootballhub.co.uk` — tested and closed, not just deferred. No RSS: every real
+  feed path (`/feed`, `/feed/`, `/rss.xml`) returns `404`. One trap worth knowing about
+  if this gets re-checked later — `?feed=rss2` returns `200`, but that's WordPress
+  silently falling back to the homepage for an unrecognized query param, not a real
+  feed: `content-type: text/html`, zero `<item>` tags. Worse for scraping: FFH is a
+  **Next.js single-page app** — fetched Crellin's own calendar article page directly,
+  and the raw HTML's only real text is site navigation ("My Team," "Toolbox," "OPTA
+  Stats"), not the article body, which loads client-side via JavaScript. Same failure
+  mode as `premierleague.com`'s injury page. Getting real article text out would need a
+  headless browser (Playwright or similar) — a materially bigger dependency than
+  `yt-dlp` was, and the first one that isn't just `pip install` and go. Not worth it:
+  Fantasy Football Scout already covers the dominant dedicated FPL outlet, Crellin's
+  calendar is already handled separately (the Google Sheet, not FFH's page about it),
+  and Crellin/Bakar's video content was already excluded from the transcript build as
+  "harder, needs filtering." What's left — FFH's own written articles — is unproven
+  value behind real new infrastructure.
+- Mainstream outlets (BBC, The Guardian, talkSPORT, Metro) — no sustained FPL beat,
+  just occasional one-off pieces; not worth building around. The Athletic has genuine
+  FPL depth (a real columnist) but is paywalled — same "leave it alone" call as FFH's
+  Members Area and `premierinjuries.com`'s bot-wall, working around a subscription
+  isn't a data-ingestion problem, it's a different kind of thing entirely.
 
 A scraper is not currently planned as a fast-follow for any of these — the RSS layer
 covers the sources that actually publish a feed; everything else stays WebSearch at
 decision time, per the weekly workflow, rather than adversarial scraping for marginal
 gain.
 
-## YouTube (checked 2026-09-03) — upload discovery works, transcripts don't
+## YouTube (checked 2026-09-03) — upload discovery and transcripts both work
 
 Considered as a news source: trusted FPL creators' videos, not X (ruled out separately —
 see the git history for that discussion).
