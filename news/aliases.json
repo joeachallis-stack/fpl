@@ -1,0 +1,10 @@
+{
+  "_comment": "ASR manglings observed in real transcripts, mapped to the roster name they mean. Grows from the unresolved-names report each week — see news/README.md. Keys are matched after the same folding roster.py applies (lowercase, accents stripped), so list the mangled form as heard, not a regex.",
+  "gabrielle": "Gabriel",
+  "savio": "Sávio",
+  "joao pedro": "João Pedro",
+  "gross": "Groß",
+  "szoboslai": "Szoboszlai",
+  "kudus": "Kudus",
+  "semenio": "Semenyo"
+}

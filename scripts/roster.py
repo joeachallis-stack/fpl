@@ -25,6 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
+ALIAS_PATH = ROOT / "news" / "aliases.json"
 
 # Folded before comparison. ß is the one that bit: unicodedata's NFD decomposition
 # handles é -> e but leaves ß untouched, because it isn't an accented letter.
@@ -38,6 +39,21 @@ def fold(s: str) -> str:
     s = unicodedata.normalize("NFD", s)
     s = "".join(c for c in s if unicodedata.category(c) != "Mn")
     return " ".join(s.split())
+
+
+def load_aliases() -> dict[str, str]:
+    """Known caption manglings, keyed by folded form.
+
+    Grown by hand from the unresolved-names report rather than guessed up front: a name
+    only earns an entry once it has actually been seen failing. Git-tracked, because it
+    is the one asset here that accumulates — every week's misses make next week's
+    extraction better, and none of it is recoverable from the API.
+    """
+    if not ALIAS_PATH.exists():
+        return {}
+    with open(ALIAS_PATH) as f:
+        raw = json.load(f)
+    return {fold(k): v for k, v in raw.items() if not k.startswith("_")}
 
 
 def load_players() -> list[dict]:
@@ -85,14 +101,26 @@ def build_index(players: list[dict]) -> dict[str, list[dict]]:
     return index
 
 
-def resolve(name: str, index: dict[str, list[dict]], team_hint: str | None = None) -> dict:
+def resolve(
+    name: str,
+    index: dict[str, list[dict]],
+    team_hint: str | None = None,
+    aliases: dict[str, str] | None = None,
+) -> dict:
     """Resolve one extracted name. Never guesses past an ambiguity.
 
     Returns {"status": "ok"|"ambiguous"|"unknown", "player": ..., "candidates": [...]}.
     A caller storing a finding should treat anything but "ok" as unresolved and keep the
     raw text, rather than dropping the finding or picking a candidate.
     """
-    hits = index.get(fold(name), [])
+    key = fold(name)
+    hits = index.get(key, [])
+    if not hits:
+        # Second chance through the alias table before giving up — this is where
+        # "Gabrielle" becomes Gabriel.
+        alias = (aliases or {}).get(key)
+        if alias:
+            hits = index.get(fold(alias), [])
     if not hits:
         return {"status": "unknown", "player": None, "candidates": [], "raw": name}
     if len(hits) > 1 and team_hint:
@@ -111,8 +139,23 @@ def resolve(name: str, index: dict[str, list[dict]], team_hint: str | None = Non
 
 
 def roster_names(players: list[dict]) -> list[str]:
-    """The vocabulary an extractor is allowed to emit — 'Web Name (Team, POS)' per line."""
+    """The vocabulary an extractor is allowed to emit, one line per player.
+
+    The whole line is the token, not the display name inside it. Display names are not
+    unique — the roster carries two players called "Palmer", Cole (Chelsea, MID, 9.6) and
+    Alex (Ipswich Town, GKP, 4.0) — so a bare web_name is unresolvable and an extractor
+    emitting one has told you less than it thinks. Team and position disambiguate.
+    """
     return [f"{p['web_name']} ({p['team']}, {p['position']})" for p in players]
+
+
+def resolve_line(line: str, players: list[dict]) -> dict | None:
+    """Resolve a full roster line emitted verbatim by an extractor."""
+    return next((p for p in players if roster_line(p) == line.strip()), None)
+
+
+def roster_line(player: dict) -> str:
+    return f"{player['web_name']} ({player['team']}, {player['position']})"
 
 
 if __name__ == "__main__":
