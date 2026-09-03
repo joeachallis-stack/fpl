@@ -159,13 +159,60 @@ v1-scope message directly, since it exists only as chat history and nowhere else
   for UCL/UEL/UECL/domestic-cup fixture congestion anyway (flagged C in the original
   audit) — a `starts`-vs-appearances proxy is the fallback if it's ever revisited.
 
+**Settled 2026-09-03 — the fallback stack.** What the model emits when the empirical
+distribution is thin or absent. Verified against the real pool (652 players fetched,
+1,236 gameweek rows) before being agreed, not proposed in the abstract.
+
+The evidence behind it: **price predicts minutes, strongly and monotonically.** Measured
+across the pool at GW3 — 3.5-4.5m start 18% of the time for 16 minutes a game, rising
+through 28%/25min, 53%/46min, to 100%/87min above 8.0m. Price is the one signal available
+for a player who has never kicked a ball in the league, because FPL sets it from their own
+expectation of the player's role. So the cold-start prior is a **price band x position**
+lookup, not a flat default and not a positional average — positions are far too internally
+varied (most of the 289 midfielders never play).
+
+```
+1. i / s / u  (injured, suspended, unavailable)  -> 0 minutes
+2. d          (doubtful)                          -> chance_of_playing% x 30
+3. a, thin evidence, owned                        -> 60-minute floor
+4. a, thin evidence, not owned                    -> insufficient_evidence, no recommendation
+5. enough evidence                                -> empirical four-bucket distribution
+6. modifier: zero minutes this season             -> halve whatever the above produced
+```
+
+Worked example, Palestra at GW3: `status: d`, "Unspecified injury - 75% chance of
+playing", 0 minutes all season. Rule 2 gives 0.75 x 30 = 22.5, rule 6 halves it to
+**11 expected minutes**.
+
+Reasoning behind the non-obvious rules:
+
+- **Rule 2 uses 30 minutes, not 60.** A player carrying a fitness flag who does play
+  tends to be eased in off the bench rather than starting. Note the direction of
+  `chance_of_playing`: it is the chance of *playing*, so 75% is nearly fit and `i` is the
+  0% bucket. Easy to read backwards.
+- **Rule 4 refuses rather than guesses.** Joe's call, and it removes a whole class of
+  problem: no smoothing scheme, no shrinkage toward a parent cell, no gambling on a cell
+  with n=2. Thin evidence shouldn't be trusted just because it exists — the price x
+  position table has real cells at n=2 (DEF elite) and n=6 (DEF premium, FWD elite) that
+  read as 100% or 33% purely on one or two players.
+- **Rule 3 exists because rule 4 can't cover an owned player.** You can't "decline to
+  recommend" someone already in the squad — projecting the team's score needs a number
+  for him regardless.
+- **Rule 6 is the correction to rule 3's optimism.** Without it, an owned permanent
+  benchwarmer is projected as a 60-minute starter, so the optimiser reads him as
+  productive and *holds him instead of flagging the transfer that should be made*. The
+  failure runs in the expensive direction, which is why the modifier is there.
+
+Known soft spot, recorded deliberately: rule 2 still gives a fit-but-benched player
+minutes on a fitness signal alone. `chance_of_playing` answers "is he fit", never "will he
+be picked" — the API has no field for the second. Rule 6 blunts it. Revisit if real output
+shows it mattering.
+
 **Still open:**
 - Exact recency-decay constant. This is a *different* decay from the `0.85^(t-1)`
   projection-horizon discount already locked in — one weights how much to trust old
   training data, the other discounts future gameweeks. Don't reuse the same number for
   both just because they're both "a decay."
-- Cold-start default for zero-history players (new arrivals, academy graduates):
-  proposed cautious mid-tier rather than assuming nailed-on. Not fully settled.
 - Where an LLM override gets logged: recommended as its own append-only log (same
   `entries.jsonl` pattern as `journal/` and `news/`), not folded into
   `journal/entries.jsonl` — that file's schema is built around scoring a decision
