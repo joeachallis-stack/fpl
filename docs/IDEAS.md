@@ -95,6 +95,19 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
    Injury data (`premierinjuries.com`) and predicted lineups have no free feed and
    are deliberately not scraped yet; see `docs/DATA_SOURCES.md` for the candidates
    and `WebSearch` covers them for now.
+6. **YouTube video transcripts**, added 2026-09-03. Upload detection via each
+   creator's public video RSS feed (5 of the named creators — Ben Crellin and
+   BigMan Bakar excluded, no dedicated channel to filter from a shared one yet).
+   A raw scrape of the caption endpoint every unofficial library relies on
+   returned `HTTP 200` with an empty body — confirmed not a cloud-sandbox
+   artifact, reproduced from a real residential IP — but `yt-dlp`'s own
+   extraction is a different code path and works: **59 of 65 real transcripts
+   (91%)** on the first run, the other 6 explained (4 age-restricted on one
+   channel, 2 unstarted livestreams) rather than mysterious. Hit YouTube's rate
+   limit after ~4 back-to-back pulls; fixed with a 2-second delay, verified by
+   recovering all 5 rate-limited videos afterward. Transcripts are cleaned plain
+   text under `news/transcripts/`, referenced by path from `news/entries.jsonl`,
+   not inlined. See `docs/DATA_SOURCES.md` for the full writeup.
 
 ## Next up
 
@@ -158,33 +171,6 @@ v1-scope message directly, since it exists only as chat history and nowhere else
   `journal/entries.jsonl` — that file's schema is built around scoring a decision
   against its counterfactual, a different shape of record than "prediction changed from
   X to Y because of Z."
-
-### YouTube as a news source — video discovery works, transcripts don't (checked
-2026-09-03)
-
-**Video-upload discovery is solid and legitimate** — same category as the blog RSS
-feeds already in `fetch_news.py`, not scraping in any adversarial sense. Every channel
-has a public feed at `youtube.com/feeds/videos.xml?channel_id=...`; verified live
-against FPL Harry's real channel, returning today's GW3 uploads with titles and publish
-times. The one implementation detail: the feed needs the channel's underlying ID, not
-its `@handle` — resolvable from the channel page.
-
-**Transcript pulling does not currently work from here, despite looking accessible on
-paper.** The mechanism (what libraries like `youtube-transcript-api` do under the hood)
-is: fetch the video's watch page, extract the signed caption-track URL embedded in it,
-fetch that URL. Every step up to the last one works — the signed URL extracts cleanly,
-no library needed. The fetch itself returns `HTTP 200`, `server: video-timedtext`,
-`content-length: 0` — silently empty, not blocked outright, which is worse than an
-error since code wouldn't catch it. Retried with full browser headers, same result.
-This matches a widely-reported failure mode for this endpoint from non-residential
-IPs. There's no official fallback either — the YouTube Data API's caption-download
-endpoint requires OAuth and only works for videos the authenticated account owns, so it
-can't substitute for third-party creators' captions.
-
-**Verdict: build the upload-detection half if the news layer gets extended to video
-creators; don't plan around auto-pulled transcripts** until someone gets one to return
-real content from wherever this project actually runs. Falls back to the same
-WebSearch-at-decision-time pattern already used for injuries and predicted lineups.
 
 ### 5. Odds-based fixture difficulty
 

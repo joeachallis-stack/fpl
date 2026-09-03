@@ -102,22 +102,33 @@ Named creators and their upload-feed feasibility:
 | Let's Talk FPL (Andy) | Primarily podcast, has a YouTube channel | Mixed, workable |
 | Ben Crellin, BigMan Bakar | No own channel — appear on Fantasy Football Hub's shared channel | Harder — needs filtering FFH's whole channel by name, nothing missed but noisy |
 
-**Transcript pulling does not work from here, despite looking accessible on paper.**
-The mechanism every unofficial library uses (`youtube-transcript-api` included): fetch
-the watch page, extract the signed caption-track URL embedded in it, fetch that URL.
-Every step up to the last one works — no library needed, the signed URL extracts
-cleanly from the raw page. The fetch itself returns `HTTP 200`, `server:
-video-timedtext`, `content-length: 0` — silently empty rather than blocked outright,
-which is worse, since code wouldn't catch it as an error. Retried with full browser
-headers, same result. Matches a widely-reported failure mode for this specific endpoint
-from non-residential IPs. No official fallback exists either: the YouTube Data API's
-caption-download endpoint requires OAuth and only works for videos the authenticated
-account owns, so it can't cover third-party creators.
+**Transcript pulling: the raw scrape doesn't work, `yt-dlp` does — built and live,
+2026-09-03.** A raw HTTP fetch of the signed caption-track URL embedded in a video's
+watch page (what `youtube-transcript-api` and similar libraries do under the hood)
+returns `HTTP 200`, `server: video-timedtext`, `content-length: 0` — silently empty,
+not blocked outright. Confirmed reproducible from a real residential IP (Verizon FiOS,
+not a cloud sandbox — checked directly via `ipinfo.io` to rule that out first), so it
+isn't an environment artifact. `yt-dlp`'s own extraction logic is a genuinely different
+code path and works: real, accurate auto-generated (ASR) captions, confirmed word-for-word
+against the actual video's audio on the first test. No official fallback exists either
+way — the YouTube Data API's caption-download endpoint requires OAuth and only works
+for videos the authenticated account owns, so it never covers third-party creators
+regardless of which extraction method is used.
 
-**Verdict:** build upload-detection if the news layer extends to video creators — it's
-solid. Don't plan around auto-pulled transcripts; treat as unproven until someone gets
-one to return real content from wherever this project actually runs. Falls back to
-WebSearch at decision time, same as the other not-yet-ingested sources above.
+**Built:** `scripts/fetch_news.py` pulls upload feeds for 5 of the named creators (all
+"Easy" tier — Ben Crellin and BigMan Bakar excluded, no dedicated channel to pull) and
+attempts a transcript for every new video via `yt_dlp`'s Python API. First real run
+against 65 videos: **59 transcripts (91%)**, 6 explained failures — 4 age-restricted
+(all from one channel, Gianni Buttice's — needs authenticated cookies to bypass, not
+worth building, same call already made against session-cookie auth for FPL's
+`my-team` endpoint) and 2 unstarted livestreams (will resolve once they air). One
+operational finding baked into the code: back-to-back pulls tripped YouTube's rate
+limit (`HTTP 429`) after ~4 requests — fixed with a 2-second delay before each pull,
+verified afterward by retrying the 5 rate-limited videos, all 5 succeeded.
+
+Transcripts are cleaned plain text (roll-up VTT timing markup stripped and
+deduplicated), stored one file per video under `news/transcripts/`, referenced from
+`news/entries.jsonl` by path rather than inlined.
 
 ## Third-party (for context the official API genuinely doesn't have: odds, predicted XIs, DGWs)
 
