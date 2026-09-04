@@ -137,6 +137,12 @@ Each catches something the others cannot.
 what they advise. `set_piece` and `price` are empty in Shorts and rich in long-form; that
 is a format artifact, not a dead category.
 
+**Shorts are dense, not thin.** They are 8% of the text, which makes them look like the
+low-value tail — they are the opposite. A 60-second wildcard reveal is a full XI of
+rationale with no filler, while a livestream runs 60-70% ads, chat, and the same bench
+question answered twenty times. Group Shorts into one agent for cost, never to
+deprioritise them.
+
 ## Known costs
 
 A full week is ~250KB of long-form across ~9 videos, plus ~11 Shorts that are only 8% of
