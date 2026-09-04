@@ -174,3 +174,29 @@ def target_gameweek(title: str, published: str, events: list[dict]) -> tuple[int
     if upcoming:
         return min(upcoming, key=lambda e: e["deadline_time"])["id"], "published_date"
     return None, "unknown"
+
+
+def relevance(title: str, published: str, events: list[dict]) -> dict:
+    """Whether a video is worth reading now, and why not if it isn't.
+
+    A gameweek number on its own does not identify a gameweek. The corpus holds videos
+    titled "FPL Gameweek 13" published in November 2024 — two seasons back — which by
+    label alone look like advice 10 weeks into the future. The publish date against this
+    season's first deadline is what separates them.
+    """
+    if is_off_topic(title):
+        return {"verdict": "off_topic", "gw": None, "reason": "not Fantasy Premier League"}
+
+    season_start = min(e["deadline_time"] for e in events)
+    if published < season_start:
+        return {"verdict": "prior_season", "gw": None,
+                "reason": f"published {published[:10]}, before this season began"}
+
+    gw, how = target_gameweek(title, published, events)
+    current = next((e["id"] for e in events if e.get("is_next")), None)
+    if gw is None or current is None:
+        return {"verdict": "unknown", "gw": gw, "reason": "no gameweek could be determined"}
+    if gw < current:
+        return {"verdict": "settled", "gw": gw,
+                "reason": f"advises on GW{gw}, which has been played"}
+    return {"verdict": "current", "gw": gw, "reason": f"advises on GW{gw}", "source": how}
