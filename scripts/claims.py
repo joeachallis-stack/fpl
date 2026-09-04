@@ -53,7 +53,8 @@ CLAIM_RULES: list[tuple[str, str, str]] = [
 # is present the claim is not treated as an assertion of fact.
 HEDGES = re.compile(
     r"\b(?:could|would|might|may|should|if|expect|predict|likely|unlikely|hope|think|"
-    r"probably|maybe|rumou?r|apparently|going to|will|chance|risk)\b",
+    r"probably|maybe|rumou?r|apparently|going to|will|chance|risk|doubts?|doubtful|"
+    r"uncertain|unsure|concerns?|worried|worry|despite|questions?)\b",
     re.I,
 )
 
