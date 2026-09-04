@@ -93,9 +93,20 @@ def test_claim(test: str, record: dict) -> bool:
     raise ValueError(f"unknown test {test}")
 
 
+# Negation flips what a claim asserts, and matching keywords alone cannot see it. The
+# first run flagged "Maguire losing his clean sheet" as contradicted because the record
+# showed no clean sheet — which is exactly what the claim said. A checker that cries wolf
+# teaches the reader to skip its output, so an apparent negation means stay quiet.
+NEGATIONS = re.compile(
+    r"\b(?:no|not|never|without|lost|losing|lose|failed|fails|miss(?:ed|es)?|"
+    r"didn't|doesn't|wasn't|hasn't|denied|conceded|instead of|rather than)\b",
+    re.I,
+)
+
+
 def check(text: str, element: int, gw: int) -> list[dict]:
     """Check one claim about one player in one gameweek. Empty list means nothing to say."""
-    if HEDGES.search(text):
+    if HEDGES.search(text) or NEGATIONS.search(text):
         return []
     record = load_history(element, gw)
     if record is None:
