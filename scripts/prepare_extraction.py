@@ -27,6 +27,7 @@ import os
 from pathlib import Path
 
 import claims
+import ledger
 import roster
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,14 +46,16 @@ ROSTER_MIN_OWNED = 1.0
 LONG_BATCHES = 3
 
 
-def already_extracted(gw: int) -> set[str]:
-    done: set[str] = set()
-    for path in FINDINGS_DIR.glob(f"gw{gw:02d}_*.jsonl"):
-        with open(path) as f:
-            for line in f:
-                if line.strip():
-                    done.add(json.loads(line)["video_id"])
-    return done
+def already_extracted() -> set[str]:
+    """Ask the ledger, not the findings files.
+
+    Inferring "done" from findings on disk mistakes a half-finished batch for a finished
+    one — an agent that dies mid-run leaves partial findings behind, and the videos it
+    never reached look identical to the ones it did. Two batches died on a session limit
+    exactly that way. The ledger records outcomes, so partial is visible as partial.
+    """
+    entries = ledger.load()
+    return {vid for vid, row in entries.items() if row["status"] == "complete"}
 
 
 def main() -> None:
@@ -74,7 +77,7 @@ def main() -> None:
             if row.get("transcript_file") and os.path.exists(row["transcript_file"]):
                 entries.append(row)
 
-    done = already_extracted(args.gw)
+    done = already_extracted()
     skipped = {"not_current": 0, "already_done": 0}
     todo = []
     for row in entries:

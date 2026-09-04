@@ -26,14 +26,33 @@ python scripts/prepare_extraction.py --gw N
 already discarded everything not worth reading — see *Why the filtering matters* below.
 If it says nothing to do, every current video is already extracted; go straight to step 3.
 
+After each batch finishes, record it:
+
+```bash
+python scripts/ledger.py record --video VIDEO_ID --gw N --findings COUNT --model sonnet
+```
+
+`news/extracted.jsonl` is why a rerun costs almost nothing: a video is read once, ever.
+Record it explicitly rather than letting the next run infer it from findings on disk — an
+agent that dies mid-batch leaves partial findings, and the videos it never reached look
+identical to the ones it finished. Two batches died on a session limit exactly that way.
+Use `--status partial` if an agent was cut off, so the video is retried rather than
+skipped.
+
+The ledger also stores the spec version. When the spec gains something material — the
+Tzolis trap, a batch of new aliases — `ledger.py show` marks which videos were read under
+older rules, so re-reading a few high-value ones becomes a decision you can actually make.
+
 ### 2. Extract — one subagent per batch, **on Sonnet**
 
 Use `model: sonnet`. This is a tight spec with no open-ended judgment and four validation
 layers behind it; Opus costs roughly five times as much for work the validators would
 catch anyway. Save Opus for step 3, where judgment actually happens.
 
-Run at most **two agents at once**. Five in parallel hits the session limit and loses
-every one of them.
+Run at most **two agents at once**. This caps concurrency, not coverage — every video
+still gets read, just not simultaneously. Five in parallel does not extract more; it hits
+the session limit and loses all five, which is how ten GW3 videos went unread on the first
+attempt.
 
 Each agent's prompt needs only: follow `.claude/skills/gameweek-brief/extraction_spec.md`,
 the batch's transcript paths with their `video_id` / `source` / `published`, the current
