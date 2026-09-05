@@ -20,13 +20,14 @@ from pathlib import Path
 
 import minutes
 import defcon
+import goal_exposure
 import saves as save_model
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "projections.json"
 ARCHIVE_DIR = ROOT / "projections"
-MODEL_VERSION = "baseline-v4-saves"
+MODEL_VERSION = "baseline-v5-goal-exposure"
 PRIOR_STRENGTH = 5.0
 # Last season is useful early evidence, but not a permanent claim about the player's
 # current role. Ten matches is an explicit starting assumption to recalibrate from the
@@ -105,17 +106,6 @@ def infer_goal_lambdas(odds: dict) -> tuple[float, float, float] | None:
         if best is None or error < best[0]:
             best = (error, home_lam, away_lam)
     return (best[1], best[2], best[0]) if best else None
-
-
-def expected_goal_conceded_deduction(lam: float) -> float:
-    return sum((goals // 2) * poisson_pmf(goals, lam) for goals in range(12))
-
-
-def expected_clean_sheet_points(
-    scoring: dict, position: str, opponent_lam: float, p_60: float,
-) -> float:
-    """Clean-sheet points require 60 minutes; DefCon deliberately does not."""
-    return scoring["clean_sheets"][position] * math.exp(-opponent_lam) * p_60
 
 
 @lru_cache(maxsize=None)
@@ -432,6 +422,16 @@ def extend_horizon(
             }
         }
 
+    def compact_goal_exposure(prediction: dict) -> dict:
+        return {
+            key: prediction[key] for key in (
+                "clean_sheet_points", "goals_conceded_points",
+                "clean_sheet_award_probability",
+                "expected_goal_conceded_deduction_units", "source",
+                "minutes_scenario_source", "opponent_goal_lambda",
+            )
+        }
+
     target_gw = payload["meta"]["gw"]
     scoring = bootstrap["game_config"]["scoring"]
     team_ids = {team["name"]: team["id"] for team in bootstrap["teams"]}
@@ -497,13 +497,12 @@ def extend_horizon(
                 components = dict(record["components"])
                 components["goals"] = record["components"]["goals"] * scale
                 components["assists"] = record["components"]["assists"] * scale
-                components["clean_sheet"] = expected_clean_sheet_points(
+                exposure_prediction = goal_exposure.predict(
                     scoring, record["position"], opponent_lam,
-                    record["minutes_bands"]["p_60_plus"],
+                    record["minutes_scenario_input"],
                 )
-                if record["position"] in {"GKP", "DEF"}:
-                    exposure = opponent_lam * record["exp_minutes"] / 90
-                    components["goals_conceded"] = -expected_goal_conceded_deduction(exposure)
+                components["clean_sheet"] = exposure_prediction["clean_sheet_points"]
+                components["goals_conceded"] = exposure_prediction["goals_conceded_points"]
                 defcon_prediction = defcon.predict(
                     players_by_id[record["element"]], record["position"], record["team"],
                     team_names[opponent_id], home, target_gw,
@@ -531,6 +530,7 @@ def extend_horizon(
                     "team_goal_lambda": round(team_lam, 3),
                     "opponent_goal_lambda": round(opponent_lam, 3),
                     "goal_model_fit_error": round(fit_error, 6) if fit_error is not None else None,
+                    "goal_exposure_model": compact_goal_exposure(exposure_prediction),
                     "defcon_model": compact_defcon(defcon_prediction),
                     "save_model": compact_saves(save_prediction),
                     **({
@@ -664,23 +664,6 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         p_play = 1 - mins["bands"]["p_zero"]
         p_60 = mins["bands"]["p_60_plus"]
 
-        components = {
-            "appearance": mins["bands"]["p_1_59"] + 2 * p_60,
-            "goals": scoring["goals_scored"][position] * exp_goals,
-            "assists": scoring["assists"] * exp_assists,
-            "clean_sheet": expected_clean_sheet_points(
-                scoring, position, opponent_lam, p_60
-            ),
-            "goals_conceded": 0.0,
-        }
-        if position in {"GKP", "DEF"}:
-            exposure_lam = opponent_lam * mins["exp_minutes"] / 90
-            components["goals_conceded"] = -expected_goal_conceded_deduction(exposure_lam)
-        hist = historical_components(
-            player, position, target_gw, priors[position], p_play,
-            mins["exp_minutes"], scoring["defensive_contribution"][position],
-        )
-        components.update({key: hist[key] for key in ("yellow", "red", "defcon", "bonus", "saves")})
         minutes_scenario_input = {
             "source": mins["source"],
             "role_states": mins.get("role_states"),
@@ -688,6 +671,22 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "exp_minutes": mins["exp_minutes"],
             "chance_of_playing_next_round": mins.get("chance_of_playing_next_round"),
         }
+        exposure_prediction = goal_exposure.predict(
+            scoring, position, opponent_lam, minutes_scenario_input
+        )
+
+        components = {
+            "appearance": mins["bands"]["p_1_59"] + 2 * p_60,
+            "goals": scoring["goals_scored"][position] * exp_goals,
+            "assists": scoring["assists"] * exp_assists,
+            "clean_sheet": exposure_prediction["clean_sheet_points"],
+            "goals_conceded": exposure_prediction["goals_conceded_points"],
+        }
+        hist = historical_components(
+            player, position, target_gw, priors[position], p_play,
+            mins["exp_minutes"], scoring["defensive_contribution"][position],
+        )
+        components.update({key: hist[key] for key in ("yellow", "red", "defcon", "bonus", "saves")})
         defcon_prediction = defcon.predict(
             player, position, team,
             fixture["away_team"] if team == fixture["home_team"] else fixture["home_team"],
@@ -742,6 +741,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "xP": round(sum(components.values()), 3),
             "history_appearances": hist["history_appearances"],
             "component_prior_audit": hist["prior_audit"],
+            "goal_exposure_model": exposure_prediction,
             "defcon_model": defcon_prediction,
             "save_model": save_prediction,
             "previous_season_actuals": previous_season_snapshot(
@@ -771,6 +771,16 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             ),
             "history_policy": "fixture finished or finished_provisional",
             "goal_model": "independent Poisson fitted to de-vigged 1X2 and O/U 2.5",
+            "goal_exposure_model": goal_exposure.MODEL_VERSION,
+            "goal_exposure_policy": (
+                "independent Poisson opponent goals scaled to each minutes state; "
+                "clean-sheet points require 60 minutes; goals-conceded deductions use 2-goal thresholds"
+            ),
+            "goal_exposure_limits": [
+                "goal rate is constant within a match",
+                "minutes and goals conceded are treated as independent",
+                "red-card continuation of goals-conceded liability is not jointly simulated",
+            ],
             "unmodeled": ["penalty saves", "penalty misses", "own goals"],
             "horizon": horizon,
             "horizon_discount": HORIZON_DISCOUNT,

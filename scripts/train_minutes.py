@@ -332,6 +332,36 @@ def metrics(
     return result
 
 
+def walk_forward_predictions(target_rows: list[dict]) -> dict[tuple[int, int], dict]:
+    """Recreate historical pre-match minutes forecasts for another model's evaluation."""
+    rows, prior_rows, _ = load_rows()
+    by_gw: dict[int, list[dict]] = defaultdict(list)
+    for row in rows:
+        by_gw[row["gw"]].append(row)
+    target_keys = {(row["element"], row["gw"]) for row in target_rows}
+    histories: dict[int, list[dict]] = defaultdict(list)
+    for row in prior_rows:
+        histories[row["element"]].append(row)
+    pool = list(prior_rows)
+    artifact = json.loads(MODEL.read_text())
+    params = artifact["selected"]
+    result = {}
+    for gw in range(1, 39):
+        peers = peer_tables(pool, gw, params["decay_halflife_gws"])
+        for target in by_gw[gw]:
+            key = (target["element"], gw)
+            if key in target_keys:
+                result[key] = predict(
+                    histories[target["element"]], target, peers,
+                    params["decay_halflife_gws"], params["peer_prior_weight"],
+                    params["state_driven_outputs"],
+                )
+        for row in by_gw[gw]:
+            histories[row["element"]].append(row)
+            pool.append(row)
+    return result
+
+
 def empirical_baseline_metrics(rows: list[dict]) -> dict:
     """Existing current-season-only model on the folds where it has >=2 observations."""
     by_gw = defaultdict(list)

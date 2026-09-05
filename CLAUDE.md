@@ -120,6 +120,8 @@ scripts/
   train_saves.py      — walk-forward fit and ablations for goalkeeper save-point expectation
   saves.py            — runtime save-count distribution used by projections
   counts.py           — shared Poisson/negative-binomial threshold helpers
+  goal_exposure.py    — role-state clean-sheet and goals-conceded scoring transform
+  evaluate_goal_exposure.py — historical isolation check against the old shortcut
   odds.py             — fetch near-term EPL odds; remove bookmaker margin and aggregate
                         fair 1X2 and over/under 2.5 probabilities across UK bookmakers
   observations.py     — append finalized player-fixture facts once, revisioning any
@@ -161,6 +163,7 @@ models/
   minutes_params.json — fitted parameters, source hashes, calibration and peer priors
   defcon_params.json  — fitted DefCon count model, ablations and calibration diagnostics
   save_params.json    — fitted goalkeeper save model and walk-forward comparisons
+  goal_exposure_validation.json — source-frozen scoring-transform comparison
 news/
   findings/gwNN_*.jsonl — structured claims extracted from transcripts, one file per
                         extraction batch. Git-tracked: reading a transcript is the
@@ -185,6 +188,7 @@ pip install -r requirements.txt
 python scripts/train_minutes.py --fetch  # one-time historical cache + reproducible refit
 python scripts/train_defcon.py            # fit DefCon after minutes (same historical cache)
 python scripts/train_saves.py             # fit goalkeeper save points after minutes
+python scripts/evaluate_goal_exposure.py   # reproduce clean-sheet/conceded comparison
 python scripts/fetch_data.py
 python scripts/show_team.py
 ```

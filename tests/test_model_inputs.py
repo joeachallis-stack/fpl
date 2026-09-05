@@ -1,4 +1,5 @@
 import json
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -8,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import minutes
+import goal_exposure
 import projections
 import train_defcon
 import train_saves
@@ -102,13 +104,88 @@ class FdrTests(unittest.TestCase):
         self.assertTrue(all(left >= right for left, right in zip(fitted, fitted[1:])))
 
 
-class DefconTests(unittest.TestCase):
+class GoalExposureTests(unittest.TestCase):
     def test_clean_sheet_still_requires_sixty_minutes(self):
-        scoring = {"clean_sheets": {"DEF": 4}}
-        self.assertEqual(
-            projections.expected_clean_sheet_points(scoring, "DEF", 1.0, 0.0),
-            0.0,
+        scoring = {
+            "clean_sheets": {"DEF": 4},
+            "goals_conceded": {"DEF": -1},
+        }
+        result = goal_exposure.predict(
+            scoring, "DEF", 1.0,
+            {
+                "source": "test",
+                "role_states": {"starter_1_59": 1.0},
+                "conditional_minutes_by_state": {"starter_1_59": 59.0},
+            },
         )
+        self.assertEqual(
+            result["clean_sheet_points"], 0.0,
+        )
+
+    def test_clean_sheet_uses_only_the_players_exposure(self):
+        scoring = {
+            "clean_sheets": {"DEF": 4},
+            "goals_conceded": {"DEF": -1},
+        }
+        result = goal_exposure.predict(
+            scoring, "DEF", 1.0,
+            {
+                "source": "test",
+                "role_states": {"starter_60_74": 1.0},
+                "conditional_minutes_by_state": {"starter_60_74": 67.0},
+            },
+        )
+        self.assertAlmostEqual(
+            result["clean_sheet_points"], 4 * math.exp(-67 / 90)
+        )
+        self.assertGreater(result["clean_sheet_points"], 4 * math.exp(-1))
+
+    def test_goals_conceded_deduction_has_no_sixty_minute_requirement(self):
+        scoring = {
+            "clean_sheets": {"DEF": 4},
+            "goals_conceded": {"DEF": -1},
+        }
+        result = goal_exposure.predict(
+            scoring, "DEF", 2.0,
+            {
+                "source": "test",
+                "role_states": {"starter_1_59": 1.0},
+                "conditional_minutes_by_state": {"starter_1_59": 45.0},
+            },
+        )
+        self.assertLess(result["goals_conceded_points"], 0.0)
+
+    def test_goal_deductions_mix_states_before_applying_thresholds(self):
+        scoring = {
+            "clean_sheets": {"DEF": 4},
+            "goals_conceded": {"DEF": -1},
+        }
+        result = goal_exposure.predict(
+            scoring, "DEF", 2.0,
+            {
+                "source": "test",
+                "role_states": {"unused": 0.5, "starter_90_plus": 0.5},
+                "conditional_minutes_by_state": {"unused": 0.0, "starter_90_plus": 90.0},
+            },
+        )
+        shortcut = goal_exposure.shortcut(scoring, "DEF", 2.0, 0.5, 45.0)
+        self.assertLess(
+            result["goals_conceded_points"], shortcut["goals_conceded_points"]
+        )
+
+    def test_role_state_transform_does_not_worsen_historical_rmse(self):
+        artifact = json.loads(
+            (ROOT / "models" / "goal_exposure_validation.json").read_text()
+        )
+        contender = artifact["metrics"]["contenders"]
+        for component in ("clean_sheet", "goals_conceded", "combined"):
+            self.assertLess(
+                contender["role_state"][component]["rmse"],
+                contender["shortcut"][component]["rmse"],
+            )
+
+
+class DefconTests(unittest.TestCase):
 
     def test_role_state_mixture_is_not_expected_minutes_shortcut(self):
         target = {

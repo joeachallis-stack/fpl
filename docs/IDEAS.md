@@ -250,12 +250,20 @@ Build these one measured component at a time rather than turning them into one o
    result worse and were excluded. The role-state mixture beat expected minutes on RMSE
    (0.59400 vs 0.59859), though expected minutes had slightly lower MAE (0.50807 vs
    0.51871); selection uses RMSE because squared error is proper for a conditional mean.
-2. **Clean-sheet and goals-conceded exposure — after saves.** Keep the bookmaker/FDR
-   opponent-goal model, but integrate its Poisson outcomes inside the full minutes states.
+2. **Clean-sheet and goals-conceded exposure — BUILT 2026-09-05.** Kept the bookmaker/FDR
+   opponent-goal model unchanged, but integrated its Poisson outcomes inside the full minutes states.
    Clean-sheet points still require 60 minutes, while a player substituted after 60 keeps
    the clean sheet if no goal was conceded during his own time on the pitch. Goals-conceded
-   deductions are also nonlinear (`floor(goals / 2)`) and should use the same exposure
-   mixture instead of one expected-minutes value.
+   deductions are also nonlinear (`floor(goals / 2)`) and now use the same exposure
+   mixture instead of one expected-minutes value. The transform reads both point values
+   from the live scoring configuration and freezes state-level exposure, clean-sheet and
+   2+/4+/6+ goal probabilities. A deliberately weak but genuinely pre-match historical
+   comparison used the fixed 2024/25 league goal rate to predict 2025/26. On 9,804
+   contender rows, combined RMSE changed only 1.24918 -> 1.24899 and MAE was effectively
+   unchanged at 0.71267. That is evidence of neutral forecast impact, not a meaningful
+   accuracy win; the change earns its place because it implements the scoring/exposure
+   rules correctly without degrading the aggregate result. The test does not validate
+   the separate bookmaker/FDR goal-rate model.
 3. **Bonus — wait for evidence.** The 2026/27 BPS changes make prior-season player-type
    effects directionally unreliable. Keep the transparent current-season fallback until
    enough finalized 2026/27 weeks exist for a walk-forward challenger.

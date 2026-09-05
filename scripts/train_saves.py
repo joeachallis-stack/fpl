@@ -182,35 +182,6 @@ def predict(
     return expected_points, audit
 
 
-def precompute_minutes(target_rows: list[dict]) -> dict[tuple[int, int], dict]:
-    rows, prior_rows, _ = train_minutes.load_rows()
-    by_gw: dict[int, list[dict]] = defaultdict(list)
-    for row in rows:
-        by_gw[row["gw"]].append(row)
-    target_keys = {(row["element"], row["gw"]) for row in target_rows}
-    histories: dict[int, list[dict]] = defaultdict(list)
-    for row in prior_rows:
-        histories[row["element"]].append(row)
-    pool = list(prior_rows)
-    artifact = json.loads(train_minutes.MODEL.read_text())
-    params = artifact["selected"]
-    result = {}
-    for gw in range(1, 39):
-        peers = train_minutes.peer_tables(pool, gw, params["decay_halflife_gws"])
-        for target in by_gw[gw]:
-            key = (target["element"], gw)
-            if key in target_keys:
-                result[key] = train_minutes.predict(
-                    histories[target["element"]], target, peers,
-                    params["decay_halflife_gws"], params["peer_prior_weight"],
-                    params["state_driven_outputs"],
-                )
-        for row in by_gw[gw]:
-            histories[row["element"]].append(row)
-            pool.append(row)
-    return result
-
-
 def summary(scored: list[dict]) -> dict:
     def one(rows: list[dict]) -> dict:
         if not rows:
@@ -318,7 +289,7 @@ def main() -> None:
         raise SystemExit("historical caches/model missing; run train_minutes.py --fetch first")
     rows = load_keeper_rows(GWS, PLAYERS, False)
     prior_rows = load_keeper_rows(PRIOR_GWS, PRIOR_PLAYERS, True)
-    minute_forecasts = precompute_minutes(rows)
+    minute_forecasts = train_minutes.walk_forward_predictions(rows)
     old = baseline(rows, prior_rows, minute_forecasts)
 
     grid = []

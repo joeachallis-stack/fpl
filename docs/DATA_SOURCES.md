@@ -360,6 +360,34 @@ not available and actual scores were not used as a proxy. Runtime output freezes
 saves, 3+/6+/9+/12+ probabilities, player evidence by season and the opponent factor.
 Penalty-save points remain explicitly separate and unmodeled.
 
+### Clean-sheet and goals-conceded exposure — built 2026-09-05
+
+`scripts/goal_exposure.py` translates the existing opponent goal lambda into FPL points
+inside every minutes role state. For a state with `m` minutes, it uses
+`lambda * m / 90`: clean-sheet points require at least 60 minutes and zero goals during
+that player's exposure, while goalkeeper/defender deductions use
+`E[floor(goals_conceded / 2)] = P(2+) + P(4+) + ...`. Point values come from the live
+`bootstrap.game_config.scoring` object. This corrects two old shortcuts: applying the
+full-match clean-sheet probability even to a defender expected to leave after 60, and
+applying the nonlinear goals-conceded threshold after collapsing all minutes states into
+one average.
+
+This is a deterministic scoring transform, not a newly fitted goal model. A reproducible
+isolation check in `scripts/evaluate_goal_exposure.py` predicts 2025/26 using the minutes
+model's walk-forward states and a single goal rate frozen from all 380 fixtures in
+2024/25. It therefore uses no 2025/26 final score as an input, but deliberately ignores
+fixture strength so both transforms can be compared without pretending historical odds
+exist. On 9,804 contender rows, combined RMSE changed from 1.24918 to 1.24899; MAE was
+0.712669 versus 0.712671. Clean-sheet RMSE improved 1.08884 -> 1.08801 and its negative
+bias narrowed -0.07491 -> -0.05733, while component MAEs were mixed. The result is
+effectively neutral: the richer transform is retained for rule correctness, not marketed
+as a material accuracy improvement. Full metrics and source hashes are frozen in
+`models/goal_exposure_validation.json`.
+
+Known assumptions are explicit in each projection: goals arrive at a constant rate
+within the match, goal timing and minutes are independent, and the special rule that a
+red-carded player remains liable for later goals is not jointly simulated.
+
 ### Expected-points and evaluation infrastructure — built 2026-09-04
 
 `scripts/observations.py` appends finalized, data-checked player-fixture rows to
@@ -381,7 +409,8 @@ component sum instead of returning an unexplained score:
   latest official `history_past` season, itself shrunk 450 minutes toward the live
   positional rate. These are explicit starting assumptions to recalibrate, not fitted
   truth; every raw season total, weight and resulting rate is frozen in the archive;
-- clean-sheet and goals-conceded expectation from the inferred opponent goal rate;
+- clean-sheet and goals-conceded expectation from the inferred opponent goal rate,
+  integrated over the minutes model's complete role-state distribution;
 - yellow and red components use the same auditable prior-season blend. Goalkeeper saves
   use the separate count/threshold model above. DefCon uses
   the separate role-state threshold model above, backed by prior-season match rows rather

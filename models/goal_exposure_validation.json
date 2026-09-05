@@ -1,0 +1,129 @@
+{
+  "model_version": "goal-exposure-v1",
+  "evaluation_season": "2025/26",
+  "pre_match_goal_rate": {
+    "source_season": "2024/25",
+    "goals_per_team_fixture": 1.4671052631578947,
+    "fixtures": 380,
+    "policy": "fixed before 2025/26; deliberately no final-score or in-season fixture-strength input"
+  },
+  "source_sha256": {
+    "2025-26_merged_gw.csv": "0d09f1f1cb1b5520ec8e2f25238aa652efe2a263d8ca7cb2b6538b27bf86727d",
+    "2025-26_players_raw.csv": "412ce0172016f8f98f25177dc6de9f3cd2a8ec7a6135f9aa638d7fdee784d67b",
+    "2024-25_merged_gw.csv": "5bbbcba6353b4c72ad273adcc8e3aa451946a826564679788f45b1cb3325b84e",
+    "2024-25_players_raw.csv": "75686051b265cbe7755ac71213ecaad21b26ee1cc46a8bafbba19c39ce894b05"
+  },
+  "minutes_model_sha256": "09f637eff2b35f4d629f3b9c1f4fc896d9a63890adc2ec9a49d634853c63219e",
+  "population_policy": "all-player diagnostics; contender means at least one prior appearance and at least 30 average minutes over up to three prior matches",
+  "metrics": {
+    "all": {
+      "shortcut": {
+        "clean_sheet": {
+          "n": 29757,
+          "mae": 0.2617905587610346,
+          "rmse": 0.6877180131825789,
+          "bias": -0.024870923823131316,
+          "predicted_mean": 0.14483704404997416,
+          "actual_mean": 0.1697079678731055
+        },
+        "goals_conceded": {
+          "n": 29757,
+          "mae": 0.07745536645028966,
+          "rmse": 0.22239543531831707,
+          "bias": 0.005693643625775128,
+          "predicted_mean": -0.051906248836502654,
+          "actual_mean": -0.057599892462277785
+        },
+        "combined": {
+          "n": 29757,
+          "mae": 0.28870717603603674,
+          "rmse": 0.7799566306823159,
+          "bias": -0.01917728019735619,
+          "predicted_mean": 0.09293079521347151,
+          "actual_mean": 0.1121080754108277
+        }
+      },
+      "role_state": {
+        "clean_sheet": {
+          "n": 29757,
+          "mae": 0.267641321754198,
+          "rmse": 0.6871994032031488,
+          "bias": -0.01659725781986597,
+          "predicted_mean": 0.1531107100532395,
+          "actual_mean": 0.1697079678731055
+        },
+        "goals_conceded": {
+          "n": 29757,
+          "mae": 0.08617078348294407,
+          "rmse": 0.22189885469616683,
+          "bias": -0.006612434957750567,
+          "predicted_mean": -0.06421232742002835,
+          "actual_mean": -0.057599892462277785
+        },
+        "combined": {
+          "n": 29757,
+          "mae": 0.2845232441179425,
+          "rmse": 0.7797444069950947,
+          "bias": -0.023209692777616538,
+          "predicted_mean": 0.08889838263321118,
+          "actual_mean": 0.1121080754108277
+        }
+      }
+    },
+    "contenders": {
+      "shortcut": {
+        "clean_sheet": {
+          "n": 9804,
+          "mae": 0.6409533523323847,
+          "rmse": 1.0888388084087584,
+          "bias": -0.07490455385109458,
+          "predicted_mean": 0.35757198633658394,
+          "actual_mean": 0.4324765401876785
+        },
+        "goals_conceded": {
+          "n": 9804,
+          "mae": 0.20051930456334519,
+          "rmse": 0.35502584547419713,
+          "bias": 0.010498712696769328,
+          "predicted_mean": -0.142194065761003,
+          "actual_mean": -0.15269277845777235
+        },
+        "combined": {
+          "n": 9804,
+          "mae": 0.7126692728506563,
+          "rmse": 1.2491848578652647,
+          "bias": -0.06440584115432525,
+          "predicted_mean": 0.21537792057558092,
+          "actual_mean": 0.27978376172990616
+        }
+      },
+      "role_state": {
+        "clean_sheet": {
+          "n": 9804,
+          "mae": 0.6522378088707539,
+          "rmse": 1.0880121380342545,
+          "bias": -0.0573316258822636,
+          "predicted_mean": 0.3751449143054149,
+          "actual_mean": 0.4324765401876785
+        },
+        "goals_conceded": {
+          "n": 9804,
+          "mae": 0.20795161867526202,
+          "rmse": 0.3534338815564414,
+          "bias": -0.0060679475896420676,
+          "predicted_mean": -0.15876072604741442,
+          "actual_mean": -0.15269277845777235
+        },
+        "combined": {
+          "n": 9804,
+          "mae": 0.7126714864141696,
+          "rmse": 1.2489945306020773,
+          "bias": -0.06339957347190567,
+          "predicted_mean": 0.2163841882580005,
+          "actual_mean": 0.27978376172990616
+        }
+      }
+    }
+  },
+  "interpretation": "This isolates the scoring transform under one deliberately weak pre-match goal rate. It does not validate the separate bookmaker/FDR opponent-goal forecast."
+}
