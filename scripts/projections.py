@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "projections.json"
 ARCHIVE_DIR = ROOT / "projections"
-MODEL_VERSION = "baseline-v6-availability"
+MODEL_VERSION = "baseline-v7-setpieces"
 PRIOR_STRENGTH = 5.0
 # Last season is useful early evidence, but not a permanent claim about the player's
 # current role. Ten matches is an explicit starting assumption to recalibrate from the
