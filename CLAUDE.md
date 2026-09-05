@@ -140,10 +140,19 @@ data/                 — gitignored cache of fetched API responses
   evaluation.json     — latest total/component forecast error by lead and model version
   odds_raw.json       — reproducible The Odds API response plus fetch/quota metadata
   odds.json           — derived probabilities matched to official FPL fixture IDs
+  odds_raw/           — one raw response per distinct market state; local re-derivation
+                        only, so gitignored (the derived twin in odds/ is tracked)
   element_summary/    — per-player fixture history + remaining fixtures (owned players)
   standings_{id}.json — mini-league standings (leagues under 500 entries only)
   snapshots/           — one dated bootstrap.json per day; the only backfill for set-piece
                         order, which the live API never exposes historically
+odds/
+  odds_*.json          — derived fair probabilities, one file per distinct bookmaker
+                        market state. Tracked in git: books price ~a week ahead and
+                        the historical endpoint is billed separately, so a line not
+                        stored before kickoff is unrecoverable. Identical markets are
+                        not re-archived, so the last file before a kickoff is that
+                        fixture's closing line.
 journal/
   entries.jsonl        — one JSON object per logged recommendation. Tracked in git,
                         unlike data/ — an authored record, not an API cache.

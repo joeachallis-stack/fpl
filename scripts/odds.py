@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import statistics
@@ -25,6 +26,8 @@ DATA_DIR = ROOT / "data"
 ENV_PATH = ROOT / ".env"
 RAW_PATH = DATA_DIR / "odds_raw.json"
 DERIVED_PATH = DATA_DIR / "odds.json"
+ARCHIVE_DIR = ROOT / "odds"
+RAW_ARCHIVE_DIR = DATA_DIR / "odds_raw"
 
 API_URL = "https://api.the-odds-api.com/v4/sports/soccer_epl/odds"
 REGION = "uk"
@@ -229,6 +232,37 @@ def derive(raw: dict, bootstrap: dict, fixtures: list[dict]) -> dict:
     }
 
 
+def market_digest(raw: dict) -> str:
+    """Hash the market content alone — fetched_at and quota move on every call."""
+    body = json.dumps(raw["events"], sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(body.encode()).hexdigest()
+
+
+def archive(raw: dict, payload: dict) -> None:
+    """Keep every distinct market state; both live odds files are overwritten each fetch.
+
+    Bookmakers only price about a week ahead and The Odds API bills separately for its
+    historical endpoint, so a line not stored before kickoff is gone for good — the same
+    unrecoverability that dated snapshots fixed for set-piece order. Derived probabilities
+    are small and git-tracked so the record survives this laptop; the raw response stays
+    under gitignored data/ because it is only needed to re-derive locally.
+
+    A cached read is not a new observation, so identical market content is not re-archived.
+    """
+    digest = market_digest(raw)
+    existing = sorted(ARCHIVE_DIR.glob("odds_*.json"))
+    if existing:
+        previous = json.loads(existing[-1].read_text())
+        if previous.get("market_sha256") == digest:
+            print(f"  odds: market unchanged since {previous['fetched_at']} — not archived")
+            return
+    stamp = datetime.fromisoformat(raw["fetched_at"]).astimezone(timezone.utc).strftime(
+        "%Y-%m-%dT%H%MZ"
+    )
+    write_json(ARCHIVE_DIR / f"odds_{stamp}.json", {**payload, "market_sha256": digest})
+    write_json(RAW_ARCHIVE_DIR / f"odds_raw_{stamp}.json", raw)
+
+
 def run(bootstrap: dict, fixtures: list[dict], refresh: bool = False) -> bool:
     if is_fresh(RAW_PATH, CACHE_MAX_AGE_H) and not refresh:
         raw = json.loads(RAW_PATH.read_text())
@@ -245,6 +279,7 @@ def run(bootstrap: dict, fixtures: list[dict], refresh: bool = False) -> bool:
 
     payload = derive(raw, bootstrap, fixtures)
     write_json(DERIVED_PATH, payload)
+    archive(raw, payload)
     print(
         f"  odds: {len(payload['fixtures'])} fixtures matched, "
         f"{len(payload['unmatched'])} unmatched"
