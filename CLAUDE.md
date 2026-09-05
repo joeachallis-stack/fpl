@@ -130,12 +130,14 @@ scripts/
   projections.py      — auditable multi-GW expected points by scoring component; combines
                         minutes, odds, official xG/xA, and shrunk match-history rates
   evaluate.py         — walk-forward error by forecast lead; all-player diagnostics and
-                        decision-weighted primary metrics remain separate
+                        decision-weighted primary metrics remain separate; reconstructs
+                        and attributes actual points to each scoring component
   decisions.py        — legal whole-squad optimizer: hold, exact 1-5 transfer plans,
                         weekly XI/captain/bench, and available Free Hit/Wildcard squads
   show_team.py        — print current squad + summary from cached data
 data/                 — gitignored cache of fetched API responses
   decisions.json      — full auditable output from the latest whole-squad optimization
+  evaluation.json     — latest total/component forecast error by lead and model version
   odds_raw.json       — reproducible The Odds API response plus fetch/quota metadata
   odds.json           — derived probabilities matched to official FPL fixture IDs
   element_summary/    — per-player fixture history + remaining fixtures (owned players)

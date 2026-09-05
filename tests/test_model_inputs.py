@@ -1,6 +1,7 @@
 import json
 import math
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import minutes
+import evaluate
 import goal_exposure
 import projections
 import train_defcon
@@ -250,6 +252,96 @@ class GoalExposureTests(unittest.TestCase):
                 contender["role_state"][component]["rmse"],
                 contender["shortcut"][component]["rmse"],
             )
+
+
+class ComponentEvaluationTests(unittest.TestCase):
+    SCORING = {
+        "goals_scored": {"GKP": 10, "DEF": 6, "MID": 5, "FWD": 4},
+        "assists": 3,
+        "clean_sheets": {"GKP": 4, "DEF": 4, "MID": 1, "FWD": 0},
+        "goals_conceded": {"GKP": -1, "DEF": -1, "MID": 0, "FWD": 0},
+        "yellow_cards": -1,
+        "red_cards": -3,
+        "defensive_contribution": {"GKP": 0, "DEF": 2, "MID": 2, "FWD": 2},
+        "bonus": 1,
+        "saves": 1,
+        "own_goals": -2,
+        "penalties_saved": 5,
+        "penalties_missed": -2,
+    }
+
+    def test_actual_components_reconstruct_official_points(self):
+        row = {
+            "position": "DEF", "minutes": 90, "goals_scored": 1, "assists": 1,
+            "clean_sheets": 0, "goals_conceded": 2, "yellow_cards": 1,
+            "red_cards": 0, "defcon_hit": True, "bonus": 3, "saves": 0,
+            "own_goals": 1, "penalties_saved": 0, "penalties_missed": 1,
+            "total_points": 10,
+        }
+        components = evaluate.observation_components(row, self.SCORING)
+        self.assertEqual(sum(components.values()), row["total_points"])
+        self.assertEqual(components["appearance"], 2)
+        self.assertEqual(components["goals_conceded"], -1)
+        self.assertEqual(components["defcon"], 2)
+        self.assertEqual(components["unexplained"], 0)
+
+    def test_double_gameweek_components_aggregate_before_scoring(self):
+        base = {
+            "position": "GKP", "minutes": 90, "goals_scored": 0, "assists": 0,
+            "clean_sheets": 1, "goals_conceded": 0, "yellow_cards": 0,
+            "red_cards": 0, "defcon_hit": False, "bonus": 0, "saves": 3,
+            "own_goals": 0, "penalties_saved": 0, "penalties_missed": 0,
+            "total_points": 7,
+        }
+        actual = evaluate.aggregate_actual([base, base], self.SCORING)
+        self.assertEqual(actual["fixtures"], 2)
+        self.assertEqual(actual["components"]["appearance"], 4)
+        self.assertEqual(actual["components"]["saves"], 2)
+        self.assertEqual(actual["official_total"], 14)
+        self.assertEqual(actual["official_total"], actual["reconstructed_total"])
+
+    def test_contender_metrics_use_frozen_weights(self):
+        rows = [
+            {"calibration_weight": 1.0, "predicted": 3.0, "actual_value": 1.0},
+            {"calibration_weight": 3.0, "predicted": 1.0, "actual_value": 1.0},
+        ]
+        result = evaluate.metric(
+            rows, lambda row: row["predicted"],
+            lambda row: row["actual_value"], weighted=True,
+        )
+        self.assertAlmostEqual(result["mae"], 0.5)
+        self.assertAlmostEqual(result["bias"], 0.5)
+        self.assertAlmostEqual(result["rmse"], 1.0)
+
+    def test_diagnostic_archive_retains_component_vectors(self):
+        payload = {
+            "meta": {"gw": 99},
+            "players": {"1": {
+                "element": 1, "web_name": "Test", "team": "A", "position": "MID",
+                "xP": 2.0, "horizon_xP": 4.0, "calibration_weight": 0.0,
+                "calibration_reasons": ["diagnostic only"],
+                "gameweeks": [{
+                    "gw": 99, "xP": 2.0,
+                    "components": {key: 0.2 for key in evaluate.FORECAST_COMPONENTS},
+                }],
+            }},
+        }
+        original = projections.ARCHIVE_DIR
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                projections.ARCHIVE_DIR = Path(directory)
+                projections.archive(payload)
+                archived = json.loads((Path(directory) / "gw99.json").read_text())
+                row = archived["players"]["1"]["gameweeks"][0]
+                self.assertIn("component_values", row)
+                self.assertNotIn("components", row)
+                self.assertEqual(
+                    evaluate.forecast_components(row, archived["meta"]),
+                    payload["players"]["1"]["gameweeks"][0]["components"],
+                )
+                self.assertEqual(archived["meta"]["archive_schema_version"], 2)
+        finally:
+            projections.ARCHIVE_DIR = original
 
 
 class DefconTests(unittest.TestCase):

@@ -276,6 +276,25 @@ pre-deadline-reproducible contender population. Freeze source hashes, parameters
 intermediate rates and threshold probabilities so later recalibration can explain why a
 forecast changed.
 
+### Component-level projection evaluation — built 2026-09-05
+
+`scripts/evaluate.py` now attributes forecast error instead of reporting only total xP
+error. For each finalized player-fixture it reconstructs actual appearance, goal, assist,
+clean-sheet, goals-conceded, card, DefCon, bonus and save points from the observation
+ledger and the scoring rules frozen with that projection. Own goals, penalty saves and
+penalty misses are reported as an explicit unmodeled residual; any remaining unexplained
+point is a hard accounting warning rather than being silently assigned to a model.
+
+Double-gameweek fixtures are scored separately and then aggregated to the same player-GW
+unit as the forecast. Output separates unweighted all-player diagnostics from metrics
+using the contender weights frozen before the deadline, and breaks both out by forecast
+lead and projection model version. MAE, RMSE, bias, predicted mean and actual mean are
+retained for each component. The archive keeps compact component vectors for diagnostic
+players and full inputs for contenders, so all-player component grading remains possible
+without returning to the earlier multi-megabyte format. The current 1,236 finalized
+observation rows reconstruct official total points exactly. There are no frozen projection
+archives yet, so real forecast-error tables begin with the next pre-deadline archive.
+
 ## Future decision dashboard
 
 Once the command-line data contracts are stable, build a local/static HTML decision

@@ -405,6 +405,16 @@ Double gameweeks remain separate fixtures and later official corrections append 
 revision rather than rewriting history. The first run captured 1,236 finalized rows for
 GWs 1-2 and an immediate rerun appended zero duplicates.
 
+`scripts/evaluate.py` converts those raw facts back into actual points for every modeled
+component using scoring rules frozen inside each projection archive. The reconstruction
+matches official `total_points` exactly across all 1,236 current finalized rows. It groups
+double-gameweek fixtures only after scoring their thresholds, compares predicted and
+actual components by forecast lead and model version, and keeps all-player metrics
+separate from frozen contender-weighted metrics. Own goals and penalty events remain an
+explicit zero-forecast residual, while any point not explained by either a modeled or
+named residual component is surfaced as `unexplained`. The reproducible machine-readable
+report is written to gitignored `data/evaluation.json`.
+
 `scripts/projections.py` produces a configurable multi-gameweek player xP matrix in
 `data/projections.json` (default six, `--horizon N`) and can freeze a pre-deadline ledger
 under `projections/`. It deliberately exposes the
@@ -446,9 +456,12 @@ per position by discounted horizon xP and by horizon xP/value, among players pro
 for at least 45 minutes. Ownership percentage is display-only and never enters forecasts,
 candidates or weights. All players retain minimal archived horizon xP for diagnostic
 grading; the calibration-weighted players retain full inputs. This reduced a test archive
-from about 2.9 MB to 482 KB without discarding fitting evidence. `scripts/evaluate.py`
-reports all-player diagnostics separately from the decision-weighted primary error and
-breaks both out by GW+1, GW+2, etc., over a configurable rolling archive window.
+from about 2.9 MB to 482 KB without discarding fitting evidence. Projection archives now
+also freeze the live scoring map and retain compact per-gameweek component vectors for
+diagnostic-only players; contenders continue to retain the full input audit.
+`scripts/evaluate.py` reports all-player diagnostics separately from the decision-weighted
+primary error and breaks both out by GW+1, GW+2, etc., over a configurable rolling archive
+window and by projection model version.
 
 - **Fantasy Football Scout** (fantasyfootballscout.co.uk) — FDR ticker, clean sheet /
   projected goals per team, widely used for fixture planning.

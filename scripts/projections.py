@@ -785,6 +785,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                 "minutes and goals conceded are treated as independent",
                 "red-card continuation of goals-conceded liability is not jointly simulated",
             ],
+            "scoring_rules": scoring,
             "unmodeled": ["penalty saves", "penalty misses", "own goals"],
             "horizon": horizon,
             "horizon_discount": HORIZON_DISCOUNT,
@@ -850,8 +851,17 @@ def archive(payload: dict) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     frozen = json.loads(json.dumps(payload))
+    frozen["meta"]["archive_schema_version"] = 2
+    sample = next(iter(payload["players"].values()))
+    sample_components = sample.get("components")
+    if sample_components is None:
+        sample_components = next(
+            row["components"] for row in sample.get("gameweeks", [])
+            if "components" in row
+        )
+    frozen["meta"]["component_order"] = list(sample_components)
     frozen["meta"]["archive_policy"] = (
-        "full inputs for calibration-weighted players; minimal horizon xP for diagnostic-only players"
+        "full inputs for calibration-weighted players; xP plus component vectors for diagnostic-only players"
     )
     for element, record in list(frozen["players"].items()):
         if record["calibration_weight"] == 0:
@@ -862,7 +872,19 @@ def archive(payload: dict) -> None:
                 "position": record["position"],
                 "xP": record["xP"],
                 "horizon_xP": record["horizon_xP"],
-                "gameweeks": [{"gw": row["gw"], "xP": row["xP"]} for row in record["gameweeks"]],
+                "gameweeks": [
+                    {
+                        "gw": row["gw"],
+                        "xP": row["xP"],
+                        **({
+                            "component_values": [
+                                row["components"][key]
+                                for key in frozen["meta"]["component_order"]
+                            ]
+                        } if "components" in row else {}),
+                    }
+                    for row in record["gameweeks"]
+                ],
                 "calibration_weight": 0.0,
                 "calibration_reasons": record["calibration_reasons"],
             }
