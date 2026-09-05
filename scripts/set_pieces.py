@@ -47,6 +47,30 @@ LEAGUE_GOALS_PER_TEAM_MATCH = 1.375
 # Only the first few names in the order matter in practice.
 MAX_TAKERS = 3
 
+# The three declared set-piece orders. Penalties are modelled numerically above; the other
+# two are tracked but deliberately NOT given a separate expectation. Measured on 291
+# players with 900+ minutes last season, designated corner takers carry 2.26x (DEF) and
+# 2.45x (MID) the xA per 90 of non-takers, and direct free-kick takers 2.52x and 1.88x.
+# Those look compelling and cannot be used, for two reasons:
+#
+#   - They are confounded. Creative players are chosen to take corners, so the ratio mixes
+#     the effect of the duty with the selection into it. Separating them needs within-player
+#     duty changes, and set-piece order has only been snapshotted since 2026-09-03.
+#   - There is no rate to derive. penalties_missed let the penalty rate be recovered from
+#     our own data; nothing counts corners or free kicks taken, so any allocation would rest
+#     on an invented number, double-counted against an xA rate that already contains it.
+#
+# Direct free kicks also contribute essentially nothing to goals: 0.73x for defenders and
+# 1.14x for midfielders, neither meaningfully above one.
+#
+# What is left is genuine and cheap: a change of duty means a player's own history
+# misrepresents him, and that is worth surfacing even when it cannot be priced.
+ORDER_FIELDS = {
+    "penalties": "penalties_order",
+    "direct_free_kicks": "direct_freekicks_order",
+    "corners": "corners_and_indirect_freekicks_order",
+}
+
 
 def load_takers(bootstrap: dict) -> dict[int, list[int]]:
     """Element ids per team, ordered by declared penalty duty (first choice first)."""
@@ -128,24 +152,39 @@ def split_team_lambda(
     }
 
 
-def order_changes(limit: int = 30) -> list[dict]:
-    """Penalty-order changes visible across the dated bootstrap snapshots.
+def duty(bootstrap: dict) -> dict[int, dict[str, int | None]]:
+    """Every declared set-piece order for every player, as displayed context."""
+    return {
+        element["id"]: {
+            name: element.get(field) for name, field in ORDER_FIELDS.items()
+        }
+        for element in bootstrap["elements"]
+        if any(element.get(field) is not None for field in ORDER_FIELDS.values())
+    }
+
+
+def order_changes(limit: int = 30, kinds: tuple[str, ...] | None = None) -> list[dict]:
+    """Set-piece duty changes visible across the dated bootstrap snapshots.
 
     This is the payoff for snapshotting: the live API only ever shows today's order, so a
     change of duty is invisible without a record of yesterday. A player who has just
-    gained or lost penalties is exactly the case where his xG history misrepresents him.
+    gained or lost a set-piece role is exactly the case where his own xG or xA history
+    misrepresents him — and for corners and free kicks, flagging that is all we can
+    honestly do, because the size of the effect is not identifiable from this data.
     """
+    kinds = kinds or tuple(ORDER_FIELDS)
     snapshots = sorted(SNAPSHOT_DIR.glob("bootstrap_*.json"))[-limit:]
     if len(snapshots) < 2:
         return []
     changes = []
-    previous_order: dict[int, int | None] = {}
+    previous_order: dict[tuple[str, int], int | None] = {}
     previous_date = None
     for path in snapshots:
         payload = json.loads(path.read_text())
         names = {team["id"]: team["name"] for team in payload["teams"]}
         current = {
-            element["id"]: element.get("penalties_order")
+            (kind, element["id"]): element.get(ORDER_FIELDS[kind])
+            for kind in kinds
             for element in payload["elements"]
         }
         labels = {
@@ -154,12 +193,13 @@ def order_changes(limit: int = 30) -> list[dict]:
         }
         date = path.stem.replace("bootstrap_", "")
         if previous_order:
-            for element_id, order in current.items():
-                was = previous_order.get(element_id)
-                if element_id in previous_order and was != order:
+            for key, order in current.items():
+                kind, element_id = key
+                was = previous_order.get(key)
+                if key in previous_order and was != order:
                     name, team = labels.get(element_id, ("?", "?"))
                     changes.append({
-                        "date": date, "previous_date": previous_date,
+                        "date": date, "previous_date": previous_date, "kind": kind,
                         "element": element_id, "web_name": name, "team": team,
                         "from": was, "to": order,
                     })
@@ -184,11 +224,11 @@ def main() -> None:
           f"from penalties alone")
 
     changes = order_changes()
-    print(f"\npenalty-order changes across {len(sorted(SNAPSHOT_DIR.glob('bootstrap_*.json')))} "
-          f"snapshots: {len(changes)}")
-    for change in changes[-15:]:
-        print(f"  {change['date']}  {change['team']:16s} {change['web_name']:14s} "
-              f"{change['from']} -> {change['to']}")
+    snapshots = len(sorted(SNAPSHOT_DIR.glob("bootstrap_*.json")))
+    print(f"\nset-piece duty changes across {snapshots} snapshots: {len(changes)}")
+    for change in changes[-25:]:
+        print(f"  {change['date']}  {change['kind']:18s} {change['team']:16s} "
+              f"{change['web_name']:14s} {change['from']} -> {change['to']}")
 
 
 if __name__ == "__main__":

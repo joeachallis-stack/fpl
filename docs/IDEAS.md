@@ -455,6 +455,30 @@ penalty rate scales proportionally with a team's attacking strength, and that cu
 held across the history each player's xG rate was measured over. The second is wrong
 exactly when duty has changed, which is what `order_changes()` is for.
 
+**Corners and direct free kicks were measured and deliberately not priced.** The obvious
+next step was to give them the same treatment as penalties. On 291 players with 900+
+minutes last season, designated corner takers carry 2.26x (DEF) and 2.45x (MID) the xA per
+90 of non-takers, and direct free-kick takers 2.52x and 1.88x. Both look compelling and
+neither can be used:
+
+- **Confounded.** Creative players are chosen to take corners, so the ratio mixes the
+  effect of the duty with the selection into it. Separating them needs within-player duty
+  changes, and set-piece order has only been snapshotted since 2026-09-03.
+- **No derivable rate.** `penalties_missed` let the penalty rate be recovered from our own
+  data. Nothing counts corners or free kicks taken, so any allocation would rest on an
+  invented number, double-counted against an xA rate that already contains the effect.
+
+Direct free kicks also contribute essentially nothing to goals — 0.73x for defenders and
+1.14x for midfielders, neither meaningfully above one — which removes the most obvious
+version of the idea entirely.
+
+What is built instead is the part that is honest and cheap: `order_changes()` now covers
+all three orders, and every projection carries `set_piece_duty` plus
+`set_piece_duty_changes`. A non-empty change list means the player's own history predates
+his current role, so his xG/xA rate deserves less trust than its sample size suggests.
+Twenty players currently carry that flag. This prices nothing and flags everything, which
+is the correct treatment for an effect that is real but not identifiable.
+
 ### Team attack/defence ratings — built and validated 2026-09-05, not yet adopted
 
 `scripts/ratings.py` fits an independent-Poisson team model,

@@ -619,6 +619,17 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
     minute_rows = minute_payload["players"]
     weights = {}
     team_takers = set_pieces.load_takers(bootstrap)
+    set_piece_duty = set_pieces.duty(bootstrap)
+    # Corners and direct free kicks are not priced — the effect is confounded with player
+    # selection and no rate is derivable — but a recent change of duty means a player's own
+    # xG/xA history misrepresents him, and that is worth flagging even when it cannot be
+    # turned into a number.
+    recent_duty_changes: dict[int, list[dict]] = {}
+    for change in set_pieces.order_changes():
+        recent_duty_changes.setdefault(change["element"], []).append(
+            {"kind": change["kind"], "from": change["from"], "to": change["to"],
+             "date": change["date"]}
+        )
     on_pitch_by_team: dict[int, dict[int, float]] = {}
     for player in players:
         row = minute_rows.get(str(player["id"]))
@@ -782,6 +793,10 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                     "xg_removed_per_90": weights.get(player["id"], {}).get(
                         "penalty", {}).get("xg_removed_per_90"),
                 },
+                "set_piece_duty": set_piece_duty.get(player["id"]),
+                # Non-empty means this player's own history predates his current role, so
+                # his xG/xA rate should be trusted less than the sample size suggests.
+                "set_piece_duty_changes": recent_duty_changes.get(player["id"], []),
                 "team_assist_share": round(assist_share, 5),
                 "prior_audit": weights.get(player["id"], {}).get("prior_audit"),
             },
