@@ -419,12 +419,25 @@ genuine weakness in the nested test — the selection environment has no prehist
 the evaluation environment has a full season of it — but "flat, so the choice does not
 matter" is not supported.
 
-**What would fix this is more evaluation data, not more model.** A held-out third of
-2025/26 was considered and rejected on two grounds: randomly sampling games lets the model
-train on matches occurring after held-out ones, which leaks in the direction that matters;
-and it is underpowered anyway — resampling says a one-third holdout detects the true
-effect only 34% of the time (median clustered t = -1.73). The real evaluation set is
-2026/27's frozen archives, accumulating forward.
+**What would fix this is more evaluation data, not more model — and the cached data
+cannot supply it.** Three routes were tried or considered:
+
+1. A held-out third of 2025/26: rejected. Randomly sampling games lets the model train on
+   matches occurring after held-out ones, which leaks in the direction that matters, and
+   it is underpowered anyway — resampling says a one-third holdout detects the true effect
+   only 34% of the time (median clustered t = -1.73).
+2. **Scoring 2024/25 as a second evaluation season: tried, and it does not answer the same
+   question.** It doubles the rows, but 2024/25 has no prior season behind it, so both
+   models start cold — and the incumbent degrades far more in a cold start than ratings
+   do. Its gap is -0.04867 (t = -4.49) against -0.02276 (t = -2.88) on 2025/26. Pooling
+   them gives a flattering -0.03514 at t = -5.30 that answers a mixture of two questions.
+   Production always has at least two cached seasons plus the live one behind a forecast,
+   so the cold-start regime is one we are never in. 2025/26 stays the primary population;
+   2024/25 is retained only as a cold-start diagnostic.
+3. 2026/27's frozen archives, accumulating forward. This is the only real answer.
+
+The honest estimate therefore remains **-0.01482 at clustered t = -1.75** on a single
+season, and no amount of re-slicing the cached data improves it.
 
 Three things to read honestly:
 

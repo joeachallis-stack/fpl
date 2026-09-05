@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-05T22:15:01+00:00",
+  "generated_at": "2026-09-05T22:37:42+00:00",
   "model": "team-ratings-v1",
   "eval_season": "2025-26",
   "prehistory_season": "2024-25",
@@ -67,7 +67,24 @@
     "mean_delta_nll": -0.02276,
     "se": 0.007899,
     "naive_se": 0.003665,
-    "t": -2.88
+    "t": -2.88,
+    "cold_start_diagnostic_2024_25": {
+      "n": 3900,
+      "clusters": 700,
+      "mean_delta_nll": -0.04867,
+      "se": 0.010832,
+      "naive_se": 0.005153,
+      "t": -4.49
+    },
+    "pooled_both_seasons": {
+      "n": 8160,
+      "clusters": 1460,
+      "mean_delta_nll": -0.03514,
+      "se": 0.006628,
+      "naive_se": 0.003122,
+      "t": -5.3
+    },
+    "population_note": "primary is 2025/26, which has prehistory behind it as production always will; 2024/25 is scored with no prior season and measures a cold start we are never in"
   },
   "nested_selection_test": {
     "selected_on": "2024-25 only",

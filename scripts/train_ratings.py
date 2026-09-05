@@ -470,12 +470,15 @@ def anchor_upper_bound(
     }
 
 
-def headline_test(prehistory: list[dict], season: list[dict], half_life: float,
-                  prior_strength: float, target: str) -> dict:
-    """Clustered paired test of the selected ratings model against the incumbent.
+MIN_HISTORY_ROWS = 60
 
-    Comparing two mean NLLs says nothing about whether the gap could be noise. This is
-    the number that decides it, and it is clustered for the reason in paired_stats.
+
+def paired_deltas(prehistory: list[dict], season: list[dict], tag: str,
+                  half_life: float, prior_strength: float, target: str) -> list[tuple]:
+    """Per-forecast (cluster, ratings NLL minus incumbent NLL) for one evaluation season.
+
+    Cluster ids carry the season tag because fixture ids restart each season and would
+    otherwise collide, silently merging two different matches into one cluster.
     """
     rounds = cutoffs_for(season)
     by_round: dict[int, list[dict]] = defaultdict(list)
@@ -486,7 +489,9 @@ def headline_test(prehistory: list[dict], season: list[dict], half_life: float,
     for cutoff_round in sorted(rounds):
         cutoff = rounds[cutoff_round]
         history = [row for row in prehistory + season if row["kickoff"] < cutoff]
-        incumbent = build_incumbent(history) if history else None
+        if len(history) < MIN_HISTORY_ROWS:
+            continue
+        incumbent = build_incumbent(history)
         if not incumbent:
             continue
         model = ratings.fit(history, cutoff, half_life, prior_strength, target, promoted)
@@ -502,8 +507,39 @@ def headline_test(prehistory: list[dict], season: list[dict], half_life: float,
                         incumbent_lambda(incumbent, row["team"], row["opponent"], row["home"]),
                         row["goals"])
                 )
-                pairs.append(((row["fixture"], row["home"]), delta))
-    return paired_stats(pairs)
+                pairs.append(((tag, row["fixture"], row["home"]), delta))
+    return pairs
+
+
+def headline_test(prehistory: list[dict], season: list[dict], half_life: float,
+                  prior_strength: float, target: str) -> dict:
+    """Clustered paired test of the ratings model against the incumbent, both seasons.
+
+    Comparing two mean NLLs says nothing about whether the gap could be noise, and one
+    season of evaluation left the honest estimate underpowered at t = -1.75. 2024/25 was
+    previously used only as prehistory and never scored; scoring it too roughly doubles
+    the evidence at no cost in new data.
+
+    Scoring 2024/25 as well doubles the rows but does NOT simply double the evidence, and
+    that turned out to matter. 2024/25 has no prior season behind it, so both models start
+    cold — and the incumbent degrades far more in a cold start than ratings do. Its
+    apparent gap is -0.04867 against -0.02276 on 2025/26, more than double.
+
+    That cold-start regime is not how this is deployed: in production there are always at
+    least two cached seasons plus the live one behind every forecast. So the pooled number
+    answers a mixture of two questions, and the 2025/26 number alone answers the one we
+    care about. **2025/26 stays primary**; 2024/25 is reported as a cold-start diagnostic.
+    """
+    main = paired_deltas(prehistory, season, "2025-26", half_life, prior_strength, target)
+    cold = paired_deltas([], prehistory, "2024-25", half_life, prior_strength, target)
+    result = paired_stats(main)
+    result["cold_start_diagnostic_2024_25"] = paired_stats(cold)
+    result["pooled_both_seasons"] = paired_stats(main + cold)
+    result["population_note"] = (
+        "primary is 2025/26, which has prehistory behind it as production always will; "
+        "2024/25 is scored with no prior season and measures a cold start we are never in"
+    )
+    return result
 
 
 def nested_selection_test(prehistory: list[dict], season: list[dict],
@@ -543,7 +579,11 @@ def nested_selection_test(prehistory: list[dict], season: list[dict],
                         ratings.expected_goals(model, home_team, away_team)[side],
                         row["goals"]))
     chosen = min(totals, key=lambda params: statistics.mean(totals[params]))
-    honest = headline_test(prehistory, season, *chosen)
+    # Score 2025/26 ONLY. headline_test also reports a 2024/25 cold-start block, and
+    # 2024/25 is exactly what the parameters were just chosen on — including it here
+    # would be selecting and scoring on the same data, which is the bug this test exists
+    # to avoid.
+    honest = paired_stats(paired_deltas(prehistory, season, "2025-26", *chosen))
     return {
         "selected_on": "2024-25 only",
         "selected": {"half_life_days": chosen[0], "prior_strength": chosen[1],
@@ -586,9 +626,13 @@ def main() -> None:
     head = headline_test(prehistory, season, best["half_life_days"],
                          best["prior_strength"], best["target"])
     print(f"\nheadline paired test, ratings minus incumbent (negative favours ratings)")
-    print(f"  mean {head['mean_delta_nll']:+.5f}  n {head['n']}  clusters {head['clusters']}"
-          f"  naive t {head['mean_delta_nll'] / head['naive_se']:+.2f}"
+    print(f"  2025/26 (primary, has prehistory as production does)")
+    print(f"    mean {head['mean_delta_nll']:+.5f}  clusters {head['clusters']}"
           f"  clustered t {head['t']:+.2f}")
+    cold = head["cold_start_diagnostic_2024_25"]
+    print(f"  2024/25 (cold start, no prior season — NOT the deployed regime)")
+    print(f"    mean {cold['mean_delta_nll']:+.5f}  clusters {cold['clusters']}"
+          f"  clustered t {cold['t']:+.2f}")
     beat = sum(1 for row in result["candidates"].values()
                if row["overall"]["nll"] < incumbent["nll"])
     print(f"  selection robustness: {beat}/{len(result['candidates'])} grid candidates "
