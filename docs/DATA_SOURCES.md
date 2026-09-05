@@ -307,6 +307,15 @@ and effective current/prior/peer weights; the probabilities are fitted scenario 
 not claims of certainty. Each live minutes ledger also freezes the parameter artifact's
 SHA-256, so a later retrain cannot silently change what an archived forecast meant.
 
+For a doubtful player, `chance_of_playing_next_round` now controls only the total
+probability of appearing. The model renormalizes the player's trained non-unused states
+inside that mass, preserving the conditional starter/cameo mixture and minutes; the same
+adjusted distribution is used for appearance, attack, clean-sheet, goals-conceded,
+DefCon and save components. The former universal 30-minute cameo assumption remains only
+as a labeled fallback when no trained role distribution exists. Because historical
+snapshots do not preserve point-in-time FPL availability flags, this is a semantic
+consistency correction to grade prospectively, not a backtested improvement claim.
+
 ### Defensive-contribution training — built 2026-09-05
 
 The official `defensive_contribution` match field is the eligible action count, not the

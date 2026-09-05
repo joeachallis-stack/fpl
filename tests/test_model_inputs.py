@@ -81,6 +81,73 @@ class CompletedHistoryTests(unittest.TestCase):
             1.0,
         )
 
+    def test_chance_of_playing_preserves_conditional_role_mix(self):
+        adjusted = minutes.apply_chance_of_playing(
+            {
+                "unused": 0.2,
+                "cameo_30_59": 0.2,
+                "starter_60_74": 0.2,
+                "starter_90_plus": 0.4,
+            },
+            {
+                "unused": 0.0,
+                "cameo_30_59": 30.0,
+                "starter_60_74": 67.0,
+                "starter_90_plus": 90.0,
+            },
+            0.75,
+        )
+        states = adjusted["role_states"]
+        self.assertAlmostEqual(states["unused"], 0.25)
+        self.assertAlmostEqual(sum(states.values()), 1.0)
+        self.assertAlmostEqual(states["cameo_30_59"] / adjusted["p_cameo"], 1.0)
+        self.assertAlmostEqual(
+            states["starter_90_plus"] / states["starter_60_74"], 2.0
+        )
+        self.assertAlmostEqual(1 - adjusted["bands"]["p_zero"], 0.75)
+
+    def test_doubtful_prediction_uses_one_distribution_everywhere(self):
+        trained = {
+            "bands": {"p_zero": 0.1, "p_1_59": 0.2, "p_60_plus": 0.7},
+            "role_states": {
+                "unused": 0.1, "cameo_30_59": 0.2,
+                "starter_60_74": 0.2, "starter_90_plus": 0.5,
+            },
+            "conditional_minutes_by_state": {
+                "unused": 0.0, "cameo_30_59": 30.0,
+                "starter_60_74": 67.0, "starter_90_plus": 90.0,
+            },
+            "p_start": 0.7,
+            "p_cameo": 0.2,
+            "exp_minutes_given_start": 83.4,
+            "exp_minutes_given_cameo": 30.0,
+            "exp_minutes": 64.4,
+            "prior_n_obs": 10,
+            "audit": {
+                "peer_effective_weight": 0.5,
+                "current_effective_weight": 1.0,
+                "prior_season_effective_weight": 1.0,
+            },
+        }
+        result = minutes.predict(
+            {
+                "id": 1, "web_name": "Flagged", "team": 1, "element_type": 2,
+                "status": "d", "chance_of_playing_next_round": 75,
+                "minutes": 180, "now_cost": 50,
+            },
+            [], 4, False, trained,
+        )
+        states, conditional, _ = minutes.projection_scenarios(result)
+        self.assertEqual(states, result["role_states"])
+        self.assertEqual(conditional, result["conditional_minutes_by_state"])
+        self.assertAlmostEqual(result["bands"]["p_zero"], 0.25)
+        self.assertAlmostEqual(sum(result["bands"].values()), 1.0)
+        self.assertAlmostEqual(
+            result["exp_minutes"],
+            sum(states[state] * conditional[state] for state in states),
+            places=1,
+        )
+
 
 class PriorTests(unittest.TestCase):
     def test_previous_rate_and_weights_are_auditable(self):

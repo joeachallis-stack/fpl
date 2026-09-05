@@ -41,7 +41,7 @@ DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "minutes.json"
 ARCHIVE_DIR = ROOT / "minutes"
 
-MODEL_VERSION = "hierarchical-v2"
+MODEL_VERSION = "hierarchical-v3-availability"
 TRAINED_MODEL = ROOT / "models" / "minutes_params.json"
 
 # Fewest gameweeks that counts as real evidence. Two is deliberate: this season is all
@@ -66,8 +66,7 @@ DECAY_HALFLIFE_GWS = 5.0
 # is guaranteed to do anything on the strength of two games.
 BAND_FLOOR = 0.05
 
-# Minutes assumed for a player carrying a fitness flag who does play: eased back in off
-# the bench rather than starting. See rule 2 in docs/IDEAS.md.
+# Legacy fallback when a doubtful player has no trained role distribution.
 DOUBTFUL_MINUTES = 30.0
 
 # Minutes floor for an owned player with too little evidence. You can't decline to
@@ -86,17 +85,22 @@ def projection_scenarios(record: dict) -> tuple[dict, dict, str]:
     source = record["source"]
     if source in {"override_out", "insufficient_evidence"}:
         return ({"unused": 1.0}, {"unused": 0.0}, source)
+    states = record.get("role_states")
+    conditional = record.get("conditional_minutes_by_state")
+    if states and conditional:
+        description = (
+            "API chance of playing x conditional trained role distribution"
+            if source == "override_doubtful"
+            else "minutes role-state distribution"
+        )
+        return states, conditional, description
     if source == "override_doubtful":
         chance = (record.get("chance_of_playing_next_round") or 0) / 100
         return (
             {"unused": 1 - chance, "cameo_30_59": chance},
             {"unused": 0.0, "cameo_30_59": 30.0},
-            "doubtful: chance of playing x 30-minute cameo",
+            "legacy doubtful fallback: chance of playing x 30-minute cameo",
         )
-    states = record.get("role_states")
-    conditional = record.get("conditional_minutes_by_state")
-    if states and conditional:
-        return states, conditional, "minutes role-state distribution"
 
     # Legacy fallback: preserve expected minutes without claiming a richer role shape.
     expected = record["exp_minutes"]
@@ -106,6 +110,58 @@ def projection_scenarios(record: dict) -> tuple[dict, dict, str]:
         {"unused": 0.0, "starter_90_plus": 90.0},
         "legacy two-state approximation",
     )
+
+
+def apply_chance_of_playing(
+    states: dict[str, float], conditional: dict[str, float], chance: float,
+) -> dict:
+    """Replace nonappearance mass while preserving role mix conditional on playing."""
+    chance = min(max(chance, 0.0), 1.0)
+    playing_mass = sum(value for state, value in states.items() if state != "unused")
+    if playing_mass <= 0:
+        states = {"unused": 0.0, "cameo_30_59": 1.0}
+        conditional = {"unused": 0.0, "cameo_30_59": DOUBTFUL_MINUTES}
+        playing_mass = 1.0
+    adjusted = {"unused": 1 - chance}
+    adjusted.update({
+        state: chance * probability / playing_mass
+        for state, probability in states.items() if state != "unused"
+    })
+    cameo_states = {"cameo_1_29", "cameo_30_59", "cameo_60_plus"}
+    starter_states = {
+        "starter_1_59", "starter_60_74", "starter_75_89", "starter_90_plus"
+    }
+    p_cameo = sum(adjusted.get(state, 0.0) for state in cameo_states)
+    p_start = sum(adjusted.get(state, 0.0) for state in starter_states)
+    bands = {
+        "p_zero": adjusted.get("unused", 0.0),
+        "p_1_59": sum(adjusted.get(state, 0.0) for state in (
+            "cameo_1_29", "cameo_30_59", "starter_1_59",
+        )),
+        "p_60_plus": sum(adjusted.get(state, 0.0) for state in (
+            "cameo_60_plus", "starter_60_74", "starter_75_89", "starter_90_plus",
+        )),
+    }
+
+    def conditional_mean(selected: set[str], probability: float) -> float:
+        return (
+            sum(adjusted.get(state, 0.0) * conditional.get(state, 0.0) for state in selected)
+            / probability if probability else 0.0
+        )
+
+    return {
+        "role_states": adjusted,
+        "conditional_minutes_by_state": conditional,
+        "bands": bands,
+        "exp_minutes": sum(
+            probability * conditional.get(state, 0.0)
+            for state, probability in adjusted.items()
+        ),
+        "p_start": p_start,
+        "p_cameo": p_cameo,
+        "exp_minutes_given_start": conditional_mean(starter_states, p_start),
+        "exp_minutes_given_cameo": conditional_mean(cameo_states, p_cameo),
+    }
 
 
 def load(name: str) -> dict:
@@ -390,13 +446,52 @@ def predict(
         exp = 0.0
         bands = {"p_zero": 1.0, "p_1_59": 0.0, "p_60_plus": 0.0}
 
-    # Rule 2 — doubtful. Scale by the API's own fitness percentage. Note the direction:
-    # chance_of_playing is the chance of PLAYING, so 75 means nearly fit.
+    # Rule 2 — doubtful. The API percentage replaces the probability of appearing;
+    # conditional on appearing, preserve the player's trained starter/cameo role mix.
     elif status == "d":
         record["override"] = f"doubtful={chance}%"
         record["source"] = "override_doubtful"
-        exp = (chance or 0) / 100.0 * DOUBTFUL_MINUTES
-        bands = bands_from_minutes(exp)
+        if trained:
+            base_states = trained["role_states"]
+            conditional = trained["conditional_minutes_by_state"]
+            base_source = "trained conditional role distribution"
+            default_chance = 1 - base_states.get("unused", 0.0)
+        else:
+            base_states = {"unused": 0.0, "cameo_30_59": 1.0}
+            conditional = {"unused": 0.0, "cameo_30_59": DOUBTFUL_MINUTES}
+            base_source = "legacy 30-minute cameo fallback"
+            default_chance = 0.0
+        effective_chance = (
+            min(max(chance / 100.0, 0.0), 1.0) if chance is not None else default_chance
+        )
+        if not trained and not played_this_season and effective_chance > 0:
+            effective_chance *= NEVER_PLAYED_FACTOR
+            record["never_played_penalty"] = True
+        adjusted = apply_chance_of_playing(base_states, conditional, effective_chance)
+        record["role_states"] = {
+            key: round(value, 4) for key, value in adjusted["role_states"].items()
+        }
+        record["conditional_minutes_by_state"] = {
+            key: round(value, 1)
+            for key, value in adjusted["conditional_minutes_by_state"].items()
+        }
+        record["p_start"] = round(adjusted["p_start"], 4)
+        record["p_cameo"] = round(adjusted["p_cameo"], 4)
+        record["exp_minutes_given_start"] = round(adjusted["exp_minutes_given_start"], 1)
+        record["exp_minutes_given_cameo"] = round(adjusted["exp_minutes_given_cameo"], 1)
+        record["availability_override"] = {
+            "api_chance_of_playing": chance,
+            "effective_probability_of_playing": round(effective_chance, 4),
+            "base_probability_of_playing": round(
+                1 - base_states.get("unused", 0.0), 4
+            ),
+            "conditional_role_source": base_source,
+            "policy": (
+                "replace appearance probability with API chance; preserve trained role "
+                "mix and conditional minutes given appearance"
+            ),
+        }
+        exp, bands = adjusted["exp_minutes"], adjusted["bands"]
 
     # Rule 5 — enough evidence. The empirical distribution, no fallback needed.
     elif trained:
@@ -424,7 +519,11 @@ def predict(
     # player with no minutes is not in the team, whatever price or fitness implies.
     # Skipped where the answer is already zero, and where refusing to guess is the
     # answer — halving a refusal means nothing.
-    if not trained and not played_this_season and exp > 0 and not record["insufficient_evidence"]:
+    if (
+        record["source"] != "override_doubtful"
+        and not trained and not played_this_season and exp > 0
+        and not record["insufficient_evidence"]
+    ):
         exp *= NEVER_PLAYED_FACTOR
         bands = bands_from_minutes(exp)
         record["never_played_penalty"] = True

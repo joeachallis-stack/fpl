@@ -427,16 +427,18 @@ in the building of it:
   Distinct from smoothing a thin sample toward a prior: this declines to assert
   certainty rather than inventing a number.
 
-**Known standing behaviour, accepted rather than fixed:** a regular starter carrying a
-fitness flag is cut hard — at GW3, Coyle had played 114 of a possible 180 minutes, was
-flagged 75% fit, and reads 22 expected minutes. The eased-in-off-the-bench assumption
-behind rule 2 fits a returning player, not one playing through a niggle. Left alone
-because it only touches already-flagged players, where news beats the model anyway.
-Worth being explicit that **this one does not self-correct with more gameweeks** — it's
-a fixed rule, not a sparse-data artifact. What retires it is the track record: with
-`status` and `chance_of_playing` frozen next to actual minutes, "what do 75%-flagged
-players really average?" becomes measurable, and the constant gets replaced rather than
-re-argued.
+**Doubtful-player rule corrected 2026-09-05.** The original fallback cut every flagged
+player to `chance_of_playing * 30 minutes`. That conflated two questions: whether a player
+appears and, conditional on appearing, whether he starts or comes from the bench. It also
+made the projection internally inconsistent: appearance bands could retain some 60-plus
+probability while DefCon, saves and clean-sheet calculations treated the same player as a
+30-minute cameo. The API percentage now replaces only the probability of appearing. The
+trained starter/cameo mixture and conditional minutes are renormalized within that
+appearance mass, and the resulting single distribution feeds every xP component. The
+30-minute cameo assumption survives only as the explicit legacy fallback when no trained
+role distribution exists. Historical FPL data does not preserve point-in-time availability
+flags, so this correction is rule/semantic consistency rather than a fitted accuracy claim;
+the frozen weekly ledgers will measure it prospectively.
 
 ### Minutes model, empirical version — design notes
 
@@ -500,23 +502,20 @@ varied (most of the 289 midfielders never play).
 
 ```
 1. i / s / u  (injured, suspended, unavailable)  -> 0 minutes
-2. d          (doubtful)                          -> chance_of_playing% x 30
+2. d          (doubtful)                          -> chance_of_playing% x trained conditional role mix
 3. a, thin evidence, owned                        -> 60-minute floor
 4. a, thin evidence, not owned                    -> insufficient_evidence, no recommendation
 5. enough evidence                                -> empirical four-bucket distribution
 6. modifier: zero minutes this season             -> halve whatever the above produced
 ```
 
-Worked example, Palestra at GW3: `status: d`, "Unspecified injury - 75% chance of
-playing", 0 minutes all season. Rule 2 gives 0.75 x 30 = 22.5, rule 6 halves it to
-**11 expected minutes**.
-
 Reasoning behind the non-obvious rules:
 
-- **Rule 2 uses 30 minutes, not 60.** A player carrying a fitness flag who does play
-  tends to be eased in off the bench rather than starting. Note the direction of
-  `chance_of_playing`: it is the chance of *playing*, so 75% is nearly fit and `i` is the
-  0% bucket. Easy to read backwards.
+- **Rule 2 separates availability from selection.** A 75% flag now means 25% unused and
+  75% distributed across that player's trained starter/cameo states in their existing
+  conditional proportions. It does not mean 75% of his normal expected minutes, nor does
+  it imply a cameo. Note the direction: 75% is nearly fit and `i` is the hard-zero bucket.
+  With no trained role distribution, the old 30-minute cameo remains a labeled fallback.
 - **Rule 4 refuses rather than guesses.** Joe's call, and it removes a whole class of
   problem: no smoothing scheme, no shrinkage toward a parent cell, no gambling on a cell
   with n=2. Thin evidence shouldn't be trusted just because it exists — the price x
@@ -530,10 +529,11 @@ Reasoning behind the non-obvious rules:
   productive and *holds him instead of flagging the transfer that should be made*. The
   failure runs in the expensive direction, which is why the modifier is there.
 
-Known soft spot, recorded deliberately: rule 2 still gives a fit-but-benched player
-minutes on a fitness signal alone. `chance_of_playing` answers "is he fit", never "will he
-be picked" — the API has no field for the second. Rule 6 blunts it. Revisit if real output
-shows it mattering.
+Known soft spot, recorded deliberately: `chance_of_playing` is an editorial availability
+estimate, not a predicted-XI probability. Treating it literally may still overstate a
+fit-but-unselected player or understate someone expected to play through a minor flag.
+The model freezes the raw percentage, pre-override appearance probability and adjusted
+distribution so this can be recalibrated from prospective results rather than anecdotes.
 
 **Still open:**
 - Exact recency-decay constant. This is a *different* decay from the `0.85^(t-1)`

@@ -111,7 +111,8 @@ scripts/
                         plus which gameweek a video is actually about
   minutes.py          — trained hierarchical minutes model: current and prior-season
                         role history plus position/price peers produce scoring-aligned
-                        bands (p_zero / p_1_59 / p_60_plus).
+                        bands (p_zero / p_1_59 / p_60_plus); availability flags replace
+                        appearance mass while preserving the conditional role mixture.
                         `archive` freezes a GW's predictions, `resolve` scores them
   train_minutes.py    — walk-forward fit of recency and peer-prior strength; writes the
                         small tracked parameter artifact under models/

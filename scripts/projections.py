@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "projections.json"
 ARCHIVE_DIR = ROOT / "projections"
-MODEL_VERSION = "baseline-v5-goal-exposure"
+MODEL_VERSION = "baseline-v6-availability"
 PRIOR_STRENGTH = 5.0
 # Last season is useful early evidence, but not a permanent claim about the player's
 # current role. Ten matches is an explicit starting assumption to recalibrate from the
@@ -670,6 +670,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "conditional_minutes_by_state": mins.get("conditional_minutes_by_state"),
             "exp_minutes": mins["exp_minutes"],
             "chance_of_playing_next_round": mins.get("chance_of_playing_next_round"),
+            "availability_override": mins.get("availability_override"),
         }
         exposure_prediction = goal_exposure.predict(
             scoring, position, opponent_lam, minutes_scenario_input
@@ -762,6 +763,9 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "season": config["season"],
             "gw": target_gw,
             "players": len(records),
+            "minutes_runtime_model": minute_payload["meta"]["model_version"],
+            "minutes_trained_model": minute_payload["meta"]["trained_model"],
+            "minutes_trained_model_sha256": minute_payload["meta"]["trained_model_sha256"],
             "assisted_goal_rate": round(assisted_goal_rate, 4),
             "player_prior_minutes": PLAYER_PRIOR_MINUTES,
             "position_prior_minutes": POSITION_PRIOR_MINUTES,
