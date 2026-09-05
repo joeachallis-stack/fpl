@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -8,6 +9,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import minutes
 import projections
+import train_defcon
 
 
 class CompletedHistoryTests(unittest.TestCase):
@@ -97,6 +99,78 @@ class FdrTests(unittest.TestCase):
             [5, 5, 2, 5, 5],
         )
         self.assertTrue(all(left >= right for left, right in zip(fitted, fitted[1:])))
+
+
+class DefconTests(unittest.TestCase):
+    def test_clean_sheet_still_requires_sixty_minutes(self):
+        scoring = {"clean_sheets": {"DEF": 4}}
+        self.assertEqual(
+            projections.expected_clean_sheet_points(scoring, "DEF", 1.0, 0.0),
+            0.0,
+        )
+
+    def test_role_state_mixture_is_not_expected_minutes_shortcut(self):
+        target = {
+            "element": 1, "position": "DEF", "team": "A", "opponent": "B",
+            "home": True, "gw": 4,
+        }
+        common = {
+            "halflife": 6.0,
+            "player_prior_minutes": 450.0, "dispersion": 0.1,
+            "fixture_mode": "none", "opponent_prior_minutes": 1800.0,
+            "position_rates": {"DEF": 12.0, "MID": 12.0, "FWD": 6.0},
+            "fixture_tables": ({}, {}),
+        }
+        lumpy, _ = train_defcon.predict_probability(
+            target,
+            [],
+            {
+                "role_states": {"unused": 0.5, "starter_90_plus": 0.5},
+                "conditional_minutes_by_state": {"unused": 0.0, "starter_90_plus": 90.0},
+            },
+            [],
+            **common,
+        )
+        steady, _ = train_defcon.predict_probability(
+            target,
+            [],
+            {
+                "role_states": {"starter_1_59": 1.0},
+                "conditional_minutes_by_state": {"starter_1_59": 45.0},
+            },
+            [],
+            **common,
+        )
+        self.assertGreater(lumpy, steady)
+
+    def test_sub_sixty_state_can_score_defcon(self):
+        probability, _ = train_defcon.predict_probability(
+            {"element": 1, "position": "DEF", "team": "A", "opponent": "B",
+             "home": True, "gw": 4},
+            [],
+            {
+                "role_states": {"cameo_30_59": 1.0},
+                "conditional_minutes_by_state": {"cameo_30_59": 50.0},
+            },
+            [],
+            halflife=6.0,
+            player_prior_minutes=450.0,
+            dispersion=0.1,
+            fixture_mode="none",
+            opponent_prior_minutes=1800.0,
+            position_rates={"DEF": 20.0, "MID": 12.0, "FWD": 6.0},
+            fixture_tables=({}, {}),
+        )
+        self.assertGreater(probability, train_defcon.PROBABILITY_FLOOR)
+
+    def test_fitted_challenger_and_role_states_beat_ablations(self):
+        artifact = json.loads((ROOT / "models" / "defcon_params.json").read_text())
+        selected = artifact["metrics"]["contenders"]
+        old = artifact["baselines"]["current_hit_rate_times_p60"]["contenders"]
+        collapsed = artifact["minutes_ablation"]["single_expected_minutes"]["contenders"]
+        self.assertLess(selected["log_loss"], old["log_loss"])
+        self.assertLess(selected["brier"], old["brier"])
+        self.assertLess(selected["log_loss"], collapsed["log_loss"])
 
 
 if __name__ == "__main__":

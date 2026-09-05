@@ -218,6 +218,19 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
     into a recommendation. Rebuild after GW3 settles and use resolved archives to test
     whether the explicit 900/450-minute starting weights should survive recalibration.
 
+13. **DefCon threshold model**, added 2026-09-05. Replaced the current-season hit-rate
+    estimate multiplied by `p60` with a direct probability of crossing the official action
+    threshold. Clean-sheet scoring still requires and uses `p60`; DefCon does not. The model
+    partially pools each player's recency-weighted actions per 90 toward position peers,
+    evaluates an overdispersed count tail inside every predicted role/minutes state, and
+    applies opponent/venue factors only because both survived walk-forward ablation. On
+    8,982 contender forecasts, log loss improved 0.35911 -> 0.33996 and Brier
+    0.10838 -> 0.10500. A corrected hit-rate baseline without the erroneous p60 multiplier
+    reached 0.34725, while collapsing the richer minutes distribution to one expected-minutes
+    value worsened log loss to 0.40309. The model and its full audit live in
+    `models/defcon_params.json`; only 2025/26 has the necessary action fields, so cross-season
+    transport remains explicitly unmeasured.
+
 ## Future decision dashboard
 
 Once the command-line data contracts are stable, build a local/static HTML decision

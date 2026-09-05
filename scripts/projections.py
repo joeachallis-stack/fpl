@@ -19,12 +19,13 @@ from functools import lru_cache
 from pathlib import Path
 
 import minutes
+import defcon
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "projections.json"
 ARCHIVE_DIR = ROOT / "projections"
-MODEL_VERSION = "baseline-v2"
+MODEL_VERSION = "baseline-v3-defcon"
 PRIOR_STRENGTH = 5.0
 # Last season is useful early evidence, but not a permanent claim about the player's
 # current role. Ten matches is an explicit starting assumption to recalibrate from the
@@ -107,6 +108,13 @@ def infer_goal_lambdas(odds: dict) -> tuple[float, float, float] | None:
 
 def expected_goal_conceded_deduction(lam: float) -> float:
     return sum((goals // 2) * poisson_pmf(goals, lam) for goals in range(12))
+
+
+def expected_clean_sheet_points(
+    scoring: dict, position: str, opponent_lam: float, p_60: float,
+) -> float:
+    """Clean-sheet points require 60 minutes; DefCon deliberately does not."""
+    return scoring["clean_sheets"][position] * math.exp(-opponent_lam) * p_60
 
 
 @lru_cache(maxsize=None)
@@ -238,8 +246,8 @@ def historical_components(
     target_gw: int,
     prior: dict,
     p_play: float,
-    p_60: float,
     exp_minutes: float,
+    defcon_points: float,
 ) -> dict:
     rows = [row for row in history_for(player["id"], target_gw) if row["minutes"] > 0]
     n = len(rows)
@@ -256,7 +264,9 @@ def historical_components(
     return {
         "yellow": -yellow * exp_minutes / 90,
         "red": -3 * red * exp_minutes / 90,
-        "defcon": 2 * defcon * p_60,
+        # Fallback only. The trained threshold model overwrites this when available.
+        # Unlike clean-sheet points, DefCon has no 60-minute requirement.
+        "defcon": defcon_points * defcon,
         "bonus": bonus * p_play,
         "saves": saves / 3 * exp_minutes / 90 if position == "GKP" else 0.0,
         "history_appearances": n,
@@ -387,7 +397,25 @@ def fdr_goal_priors(odds_rows: list[dict], fixtures: list[dict]) -> tuple[dict, 
     return priors, diagnostics
 
 
-def extend_horizon(payload: dict, bootstrap: dict, fixtures: list[dict], odds_payload: dict, horizon: int) -> None:
+def extend_horizon(
+    payload: dict, bootstrap: dict, fixtures: list[dict], odds_payload: dict,
+    horizon: int, defcon_context: dict | None,
+) -> None:
+    def compact_defcon(prediction: dict) -> dict:
+        """Fixture-varying fields only; common player evidence lives on the record."""
+        audit = prediction.get("audit", {})
+        return {
+            key: prediction[key] for key in (
+                "probability", "source", "threshold", "minutes_scenario_source"
+            ) if key in prediction
+        } | {
+            "fixture_factors": {
+                key: round(audit[key], 6)
+                for key in ("opponent_factor", "venue_factor", "fixture_factor")
+                if key in audit
+            }
+        }
+
     target_gw = payload["meta"]["gw"]
     scoring = bootstrap["game_config"]["scoring"]
     team_ids = {team["name"]: team["id"] for team in bootstrap["teams"]}
@@ -409,6 +437,7 @@ def extend_horizon(payload: dict, bootstrap: dict, fixtures: list[dict], odds_pa
         "odds_snapshot": odds_payload,
     }
     exact_odds = {row["fixture_id"]: row for row in odds_payload["fixtures"]}
+    players_by_id = {player["id"]: player for player in bootstrap["elements"]}
     fixture_lookup = {}
     for fixture in fixtures:
         if fixture.get("event") is None:
@@ -452,14 +481,23 @@ def extend_horizon(payload: dict, bootstrap: dict, fixtures: list[dict], odds_pa
                 components = dict(record["components"])
                 components["goals"] = record["components"]["goals"] * scale
                 components["assists"] = record["components"]["assists"] * scale
-                components["clean_sheet"] = (
-                    scoring["clean_sheets"][record["position"]]
-                    * math.exp(-opponent_lam)
-                    * record["minutes_bands"]["p_60_plus"]
+                components["clean_sheet"] = expected_clean_sheet_points(
+                    scoring, record["position"], opponent_lam,
+                    record["minutes_bands"]["p_60_plus"],
                 )
                 if record["position"] in {"GKP", "DEF"}:
                     exposure = opponent_lam * record["exp_minutes"] / 90
                     components["goals_conceded"] = -expected_goal_conceded_deduction(exposure)
+                defcon_prediction = defcon.predict(
+                    players_by_id[record["element"]], record["position"], record["team"],
+                    team_names[opponent_id], home, target_gw,
+                    record["defcon_minutes_input"], defcon_context,
+                )
+                if defcon_prediction["probability"] is not None:
+                    components["defcon"] = (
+                        scoring["defensive_contribution"][record["position"]]
+                        * defcon_prediction["probability"]
+                    )
                 for key, value in components.items():
                     gw_components[key] += value
                 fixture_forecasts.append({
@@ -470,6 +508,7 @@ def extend_horizon(payload: dict, bootstrap: dict, fixtures: list[dict], odds_pa
                     "team_goal_lambda": round(team_lam, 3),
                     "opponent_goal_lambda": round(opponent_lam, 3),
                     "goal_model_fit_error": round(fit_error, 6) if fit_error is not None else None,
+                    "defcon_model": compact_defcon(defcon_prediction),
                     **({
                         "fdr_calibration": {
                             "team": team_bucket,
@@ -538,6 +577,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         raise SystemExit(f"GW{target_gw} has odds for {len(gameweek_odds)}/10 fixtures — refusing partial rankings")
 
     players = bootstrap["elements"]
+    defcon_context = defcon.load_context(bootstrap, config["season"])
     types = {row["id"]: row["singular_name_short"] for row in bootstrap["element_types"]}
     priors = build_priors(players, types, target_gw)
     team_names = {team["id"]: team["name"] for team in bootstrap["teams"]}
@@ -603,16 +643,37 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "appearance": mins["bands"]["p_1_59"] + 2 * p_60,
             "goals": scoring["goals_scored"][position] * exp_goals,
             "assists": scoring["assists"] * exp_assists,
-            "clean_sheet": scoring["clean_sheets"][position] * math.exp(-opponent_lam) * p_60,
+            "clean_sheet": expected_clean_sheet_points(
+                scoring, position, opponent_lam, p_60
+            ),
             "goals_conceded": 0.0,
         }
         if position in {"GKP", "DEF"}:
             exposure_lam = opponent_lam * mins["exp_minutes"] / 90
             components["goals_conceded"] = -expected_goal_conceded_deduction(exposure_lam)
         hist = historical_components(
-            player, position, target_gw, priors[position], p_play, p_60, mins["exp_minutes"]
+            player, position, target_gw, priors[position], p_play,
+            mins["exp_minutes"], scoring["defensive_contribution"][position],
         )
         components.update({key: hist[key] for key in ("yellow", "red", "defcon", "bonus", "saves")})
+        defcon_minutes_input = {
+            "source": mins["source"],
+            "role_states": mins.get("role_states"),
+            "conditional_minutes_by_state": mins.get("conditional_minutes_by_state"),
+            "exp_minutes": mins["exp_minutes"],
+            "chance_of_playing_next_round": mins.get("chance_of_playing_next_round"),
+        }
+        defcon_prediction = defcon.predict(
+            player, position, team,
+            fixture["away_team"] if team == fixture["home_team"] else fixture["home_team"],
+            team == fixture["home_team"], target_gw, defcon_minutes_input, defcon_context,
+        )
+        if defcon_prediction["probability"] is not None:
+            components["defcon"] = (
+                scoring["defensive_contribution"][position]
+                * defcon_prediction["probability"]
+            )
+            hist["prior_audit"]["defcon"] = "trained threshold model; see defcon_model audit"
         rounded = {key: round(value, 3) for key, value in components.items()}
         records[str(player["id"])] = {
             "element": player["id"],
@@ -625,6 +686,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "exp_minutes": mins["exp_minutes"],
             "minutes_bands": mins["bands"],
             "minutes_source": mins["source"],
+            "defcon_minutes_input": defcon_minutes_input,
             "status": mins["status"],
             "now_cost": player["now_cost"],
             "expected_goals": round(exp_goals, 3),
@@ -647,6 +709,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "xP": round(sum(components.values()), 3),
             "history_appearances": hist["history_appearances"],
             "component_prior_audit": hist["prior_audit"],
+            "defcon_model": defcon_prediction,
             "previous_season_actuals": previous_season_snapshot(
                 previous_season_for(player["id"])
             ),
@@ -679,12 +742,26 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "horizon_discount": HORIZON_DISCOUNT,
             "form_prior_matches": FORM_PRIOR_MATCHES,
             "prior_strength": PRIOR_STRENGTH,
+            "defcon_model": (
+                defcon_context["model"]["model_version"] if defcon_context else None
+            ),
+            "defcon_model_sha256": (
+                defcon_context["model"]["_artifact_sha256"] if defcon_context else None
+            ),
+            "defcon_current_finalized_rows": (
+                defcon_context["current_rows"] if defcon_context else 0
+            ),
+            "defcon_model_limits": (
+                defcon_context["model"]["known_limits"] if defcon_context else [
+                    "trained DefCon model unavailable; corrected current-season hit-rate fallback used"
+                ]
+            ),
         },
         "priors": priors,
         "players": records,
     }
     fixtures = load(DATA_DIR / "fixtures.json")
-    extend_horizon(payload, bootstrap, fixtures, odds_payload, horizon)
+    extend_horizon(payload, bootstrap, fixtures, odds_payload, horizon, defcon_context)
     assign_calibration_weights(payload, bootstrap)
     OUT.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote {OUT.relative_to(ROOT)} — {len(records)} players, GW{target_gw}")

@@ -115,6 +115,8 @@ scripts/
                         `archive` freezes a GW's predictions, `resolve` scores them
   train_minutes.py    — walk-forward fit of recency and peer-prior strength; writes the
                         small tracked parameter artifact under models/
+  train_defcon.py     — walk-forward fit and ablations for DefCon threshold probability
+  defcon.py           — runtime role-state/action-count DefCon model used by projections
   odds.py             — fetch near-term EPL odds; remove bookmaker margin and aggregate
                         fair 1X2 and over/under 2.5 probabilities across UK bookmakers
   observations.py     — append finalized player-fixture facts once, revisioning any
@@ -154,6 +156,7 @@ decisions/
                         legal weekly lineups and the alternatives shown to Joe
 models/
   minutes_params.json — fitted parameters, source hashes, calibration and peer priors
+  defcon_params.json  — fitted DefCon count model, ablations and calibration diagnostics
 news/
   findings/gwNN_*.jsonl — structured claims extracted from transcripts, one file per
                         extraction batch. Git-tracked: reading a transcript is the
@@ -176,6 +179,7 @@ docs/
 ```bash
 pip install -r requirements.txt
 python scripts/train_minutes.py --fetch  # one-time historical cache + reproducible refit
+python scripts/train_defcon.py            # fit DefCon after minutes (same historical cache)
 python scripts/fetch_data.py
 python scripts/show_team.py
 ```

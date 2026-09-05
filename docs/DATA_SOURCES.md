@@ -307,6 +307,35 @@ and effective current/prior/peer weights; the probabilities are fitted scenario 
 not claims of certainty. Each live minutes ledger also freezes the parameter artifact's
 SHA-256, so a later retrain cannot silently change what an archived forecast meant.
 
+### Defensive-contribution training — built 2026-09-05
+
+The official `defensive_contribution` match field is the eligible action count, not the
+number of FPL points awarded. `scripts/train_defcon.py` reconstructs the same count from
+tackles, clearances/blocks/interceptions and (for MID/FWD only) recoveries, then predicts
+the binary scoring threshold: 10 for DEF and 12 for MID/FWD. Goalkeepers remain
+ineligible. Unlike clean-sheet points, DefCon has no 60-minute requirement; only 7
+qualifying 2025/26 performances occurred below 60 minutes, so the old approximation was
+usually close but structurally wrong.
+
+The fitted model estimates a recency-weighted player action rate partially pooled toward
+position peers, models overdispersed action counts, calculates the threshold probability
+inside each of the minutes model's eight role/minutes states, and mixes those probabilities.
+Walk-forward selection on 8,982 contender forecasts chose a 12-GW action half-life, a
+450-minute positional prior and negative-binomial dispersion 0.1. Contender log loss/Brier
+improved from 0.35911/0.10838 for the previous hit-rate-times-p60 heuristic to
+0.33996/0.10500; merely removing p60 reached 0.34725/0.10665. Expected calibration error
+improved from 0.04035 to 0.01058.
+
+Opponent and venue action-rate factors survived explicit ablation, narrowly improving
+log loss from 0.34156 without fixture context to 0.33996. A single expected-minutes input
+was also tested directly and scored much worse (0.40309 log loss, 0.06020 calibration
+error), so the role-state mixture earns its added structure. Historical bookmaker
+probabilities do not exist in the source data and actual match results were not used as a
+proxy. The artifact records this limitation, all grids, calibration bins and source hashes;
+each live projection records the raw/effective player evidence and state-level hit chances.
+Only one completed season contains the action fields, so season-to-season transport is not
+yet measured and current-season finalized observations are appended as they accumulate.
+
 ### Expected-points and evaluation infrastructure — built 2026-09-04
 
 `scripts/observations.py` appends finalized, data-checked player-fixture rows to
@@ -329,10 +358,11 @@ component sum instead of returning an unexplained score:
   positional rate. These are explicit starting assumptions to recalibrate, not fitted
   truth; every raw season total, weight and resulting rate is frozen in the archive;
 - clean-sheet and goals-conceded expectation from the inferred opponent goal rate;
-- yellow, red and save components use the same auditable prior-season blend. DefCon stays
-  current-season/position based because a season aggregate cannot recover per-match
-  threshold hits. Prior-season bonus is deliberately excluded because the 2026/27 BPS
-  changes make it directionally non-comparable; each player's sample size is retained.
+- yellow, red and save components use the same auditable prior-season blend. DefCon uses
+  the separate role-state threshold model above, backed by prior-season match rows rather
+  than the official season aggregate. Prior-season bonus is deliberately excluded because
+  the 2026/27 BPS changes make it directionally non-comparable; each player's sample size
+  is retained.
 
 The model reads point weights from `bootstrap.game_config.scoring`, refuses to publish a
 ranking unless all ten next-gameweek fixtures have usable odds, and records bookmaker
