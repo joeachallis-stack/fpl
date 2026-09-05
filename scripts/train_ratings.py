@@ -506,6 +506,58 @@ def headline_test(prehistory: list[dict], season: list[dict], half_life: float,
     return paired_stats(pairs)
 
 
+def nested_selection_test(prehistory: list[dict], season: list[dict],
+                          grid: list[tuple]) -> dict:
+    """Select hyperparameters on the prehistory season, then score once on the eval season.
+
+    This is the check that matters for the overfitting question. The main grid picks its
+    winner using the same 2025/26 results it is then scored on, which inflates the margin
+    by the best-of-80 bonus. Here the choice is made using 2024/25 alone — 2025/26 is
+    never consulted during selection — and the frozen choice is evaluated once.
+
+    Known weakness: the selection environment has no prehistory of its own, while the
+    evaluation environment has a full season of it. The two regimes differ, so the
+    parameters chosen here may partly be an artifact of that rather than a fair transfer.
+    Fixing it properly needs a third cached season. Read the effect size, which is
+    corroborated by the median-candidate gap, rather than the chosen parameters.
+    """
+    rounds = cutoffs_for(prehistory)
+    by_round: dict[int, list[dict]] = defaultdict(list)
+    for row in prehistory:
+        by_round[row["round"]].append(row)
+
+    totals: dict[tuple, list[float]] = defaultdict(list)
+    for cutoff_round in sorted(rounds):
+        cutoff = rounds[cutoff_round]
+        history = [row for row in prehistory if row["kickoff"] < cutoff]
+        if len(history) < 60:
+            continue
+        fitted = {params: ratings.fit(history, cutoff, *params) for params in grid}
+        for lead in range(1, MAX_LEAD + 1):
+            for row in by_round.get(cutoff_round + lead - 1, []):
+                home_team = row["team"] if row["home"] else row["opponent"]
+                away_team = row["opponent"] if row["home"] else row["team"]
+                side = 0 if row["home"] else 1
+                for params, model in fitted.items():
+                    totals[params].append(poisson_nll(
+                        ratings.expected_goals(model, home_team, away_team)[side],
+                        row["goals"]))
+    chosen = min(totals, key=lambda params: statistics.mean(totals[params]))
+    honest = headline_test(prehistory, season, *chosen)
+    return {
+        "selected_on": "2024-25 only",
+        "selected": {"half_life_days": chosen[0], "prior_strength": chosen[1],
+                     "target": chosen[2]},
+        "evaluated_on": "2025-26",
+        "result": honest,
+        "caveat": (
+            "selection ran without prehistory while evaluation has a full season of it, "
+            "so the chosen parameters may be regime-specific; a third cached season would "
+            "be needed to remove that"
+        ),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quick", action="store_true", help="every third cutoff round")
@@ -541,6 +593,15 @@ def main() -> None:
                if row["overall"]["nll"] < incumbent["nll"])
     print(f"  selection robustness: {beat}/{len(result['candidates'])} grid candidates "
           f"beat the incumbent")
+
+    nested = nested_selection_test(prehistory, season, grid)
+    honest = nested["result"]
+    print(f"\nnested selection — parameters chosen on 2024/25, scored once on 2025/26")
+    print(f"  chosen: half-life {nested['selected']['half_life_days']:g}, prior "
+          f"{nested['selected']['prior_strength']:g}, target {nested['selected']['target']}")
+    print(f"  honest gap {honest['mean_delta_nll']:+.5f}  clustered t {honest['t']:+.2f}")
+    print(f"  in-sample gap {head['mean_delta_nll']:+.5f}  clustered t {head['t']:+.2f}"
+          f"   <- inflated by the best-of-{len(grid)} bonus")
 
     print(f"\n{'lead':>5s} {'incumbent':>11s} {'ratings':>11s} {'delta':>9s}")
     for lead in sorted(best["by_lead"], key=int):
@@ -592,6 +653,7 @@ def main() -> None:
         "selected": {"name": best_name, **{k: v for k, v in best.items() if k != "by_lead"},
                      "by_lead": best["by_lead"]},
         "headline_paired_test": head,
+        "nested_selection_test": nested,
         "promoted_prior_ablation": ablation,
         "anchor_bracket": bounds,
         "incumbent_note": (

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-05T22:07:07+00:00",
+  "generated_at": "2026-09-05T22:15:01+00:00",
   "model": "team-ratings-v1",
   "eval_season": "2025-26",
   "prehistory_season": "2024-25",
@@ -68,6 +68,24 @@
     "se": 0.007899,
     "naive_se": 0.003665,
     "t": -2.88
+  },
+  "nested_selection_test": {
+    "selected_on": "2024-25 only",
+    "selected": {
+      "half_life_days": 60.0,
+      "prior_strength": 2.0,
+      "target": "xg"
+    },
+    "evaluated_on": "2025-26",
+    "result": {
+      "n": 4260,
+      "clusters": 760,
+      "mean_delta_nll": -0.01482,
+      "se": 0.008487,
+      "naive_se": 0.003881,
+      "t": -1.75
+    },
+    "caveat": "selection ran without prehistory while evaluation has a full season of it, so the chosen parameters may be regime-specific; a third cached season would be needed to remove that"
   },
   "promoted_prior_ablation": {
     "question": "promoted-team prior minus league-average prior; negative favours the prior",

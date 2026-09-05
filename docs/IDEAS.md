@@ -378,21 +378,43 @@ rounds, Poisson NLL on actual goals (lower is better):
 Ratings win at every forecast lead 1-6 (NLL delta -0.018 to -0.027), which is the point:
 the gap does not close as the horizon lengthens.
 
-**Is the headline real, or selection noise?** Two checks, both of which it passes:
+**Is the headline real, or selection noise? Partly the latter.** Three checks:
 
 - Clustered paired test of the selected model against the incumbent: mean delta -0.02276,
-  **clustered t = -2.88** (naive t would have said -6.21). Significant, but half as
-  emphatic as it first looked.
-- Selection robustness: **79 of the 80 grid candidates beat the incumbent**, median
-  candidate 1.44751 against the incumbent's 1.46336. The conclusion therefore does not
-  depend on having picked the winner from 80 tries — which is the specific overfitting
-  risk worth worrying about here.
+  clustered t = -2.88 (naive t would have said -6.21).
+- Selection robustness: **79 of 80 grid candidates beat the incumbent**, median candidate
+  gap -0.01585. The *sign* is therefore not an artifact of picking a winner.
+- **Nested selection, which is the honest test.** Hyperparameters chosen on 2024/25 alone,
+  with 2025/26 never consulted during selection, then scored once: **gap -0.01482,
+  clustered t = -1.75.** Not significant.
 
-What is *not* established is the specific hyperparameters. Choosing hl730/prior-8/xG from
-80 candidates scored on the same data is selection on the test set, and the surface is
-flat enough (365 to 3650 days differ in the fifth decimal) that the half-life is
-essentially unidentified. Treat "team strength is close to stationary and xG beats goals"
-as the finding; treat 730 days as an arbitrary point on a plateau.
+Those three reconcile exactly, and the reconciliation is the finding:
+
+| estimate | gap |
+|---|---|
+| best of 80, selected on the evaluation data | -0.02276 |
+| median candidate | -0.01585 |
+| honest, parameters selected on 2024/25 | -0.01482 |
+
+**The honest gap matches the median candidate, not the best one. The headline's extra
+0.008 was the best-of-80 bonus.** Ratings very consistently beat the FDR fallback in sign
+— 79/80 candidates, every lead — but the margin is small enough that one season of
+evaluation cannot establish it at conventional significance. The correct summary is
+"probably real, small, not proven", and earlier versions of this section overstated it.
+
+An earlier claim here that the hyperparameter surface is "flat" was also wrong in a way
+that matters. Selection on 2024/25 chose half-life 60 / prior 2; selection on 2025/26
+chose 730 / 8, and the two do not perform equivalently out of sample. Part of that is a
+genuine weakness in the nested test — the selection environment has no prehistory while
+the evaluation environment has a full season of it — but "flat, so the choice does not
+matter" is not supported.
+
+**What would fix this is more evaluation data, not more model.** A held-out third of
+2025/26 was considered and rejected on two grounds: randomly sampling games lets the model
+train on matches occurring after held-out ones, which leaks in the direction that matters;
+and it is underpowered anyway — resampling says a one-third holdout detects the true
+effect only 34% of the time (median clustered t = -1.73). The real evaluation set is
+2026/27's frozen archives, accumulating forward.
 
 Three things to read honestly:
 
@@ -510,8 +532,12 @@ It also makes the promoted-team problem concrete rather than theoretical: Hull C
 currently rates fifth on attack-over-defence off **two matches**, and is flagged `thin`
 by `effective_matches_by_team` precisely so that number is not mistaken for Arsenal's.
 
-**Still not adopted.** Adoption must be judged on decision-weighted player forecasts, not
-team goals, and that test cannot run until frozen projection archives resolve.
+**Still not adopted, and the bar is now higher than it looked.** The honest out-of-sample
+margin is -0.0148 at t = -1.75, so ratings are not established as better on this evidence
+alone — only consistently better in sign. Adoption must in any case be judged on
+decision-weighted player forecasts rather than team goals, and that test cannot run until
+frozen projection archives resolve. Do not wire ratings into `projections.py` on the
+strength of the backtest.
 
 Also note the scope of what was measured: this improves **team goals**, an input. The
 adoption rule in this document is improvement in decision-weighted player forecasts.
