@@ -60,6 +60,54 @@ Headline results — 15 A, 6 B, 5 C across 26 items. The four decisions, settled
    journal regardless.
    *(An earlier version of this said the data didn't exist. It does — that was my error.)*
 
+### Highest priority: never miss a pre-deadline freeze
+
+**The track record is the bottleneck, and it can only be built forward.** As of
+2026-09-05 there are no files in `projections/` or `decisions/`, `minutes/` holds only
+GW3, and `data/evaluation.json` reports zero resolved forecasts. Every constant in the
+model — the 900/450-minute attacking priors, the 0.85 horizon discount, the fitted
+half-lives — is an assumption against 2026/27 until frozen forecasts resolve.
+
+A late archive is not a worse forecast, it is not a forecast. Re-running after a
+deadline reads an `element_summary` containing the played gameweek, a minutes model
+retrained on it, moved odds and changed prices. The archives refuse to overwrite for
+exactly this reason, so a missed deadline is a permanent hole.
+
+Automated 2026-09-05 by `scripts/freeze.py` under a launchd agent
+(`scripts/com.joechallis.fpl-freeze.plist`, hourly). The script runs often and almost
+always does nothing: it exits unless a deadline is inside `FREEZE_LEAD_HOURS` (12) and
+an archive is actually missing, then archives only the missing steps. A step that
+refuses — `projections.py` declines a partial gameweek of odds — does not block the
+others, and the next run retries. launchd fires a missed `StartInterval` job when the
+machine next wakes, so a sleeping laptop catches up rather than losing the gameweek.
+
+Consequences accepted deliberately:
+
+- First success wins, so a freeze at T-11h locks in staler team news than T-2h. A
+  stale-but-honest forecast beats a hole. Keeping the laptop open near a deadline still
+  produces a better archive.
+- If the freeze lands at T-11h and the real transfer is made at T-1h on late news, the
+  decision archive will not match the action taken. That is fine as long as
+  `journal.py add` records what was actually done — the mismatch measures what late team
+  news is worth.
+- `resolve` is deliberately not automated. It is safe to run late, so it stays manual.
+
+Timeline this buys, given the international break (GW5 is 18 Sep, GW6 is 10 Oct): first
+resolved lead-1 error ~15 Sep, six lead-1 samples ~2 Nov, six samples at every lead
+~5 Dec. Because each archive spans a six-gameweek horizon, lead-*k* error gets its first
+sample only *k* weeks after the first archive. Do not retune a component before that
+window fills; `evaluate.py` splits by `model_version`, so changing a model mid-series
+resets the count toward six comparable archives.
+
+Statistical power is thinner than the row counts suggest. With 63 contenders per archive,
+six weeks of lead-1 forecasts is ~378 contender player-weeks. Event rates in the current
+ledger (622 played rows): DefCon threshold hits 9.6%, goals 8.5%, assists 8.5%, bonus
+10.0%, clean sheets 19.6%, yellows 11.9% — but red cards 0.16%, own goals 0.64%,
+penalties missed 0.16%, penalties saved 0%. Expect to detect component *bias* well before
+component RMSE is tunable, and accept that red-card and penalty events will not be
+measurable this season. Keeping them as an explicit residual is the permanent answer,
+not a placeholder.
+
 ### Urgent, before the next fetch
 
 `fetch_data.py` overwrites `bootstrap.json` on every run. Set-piece order

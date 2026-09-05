@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hourly pre-deadline freeze. Tracked here so the schedule is auditable and can be
+  reinstalled; the live copy lives in ~/Library/LaunchAgents/.
+
+  StartInterval rather than StartCalendarInterval because the fixture calendar is
+  irregular (GW5 is 18 Sep, GW6 is 10 Oct) and freeze.py decides for itself whether
+  a deadline is close. launchd runs a missed StartInterval job once when the machine
+  next wakes, so a laptop asleep through the window catches up instead of losing the
+  gameweek. RunAtLoad gives one more catch-up point at login.
+
+  Install:   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.joechallis.fpl-freeze.plist
+  Remove:    launchctl bootout gui/$(id -u)/com.joechallis.fpl-freeze
+  Run now:   launchctl kickstart -k gui/$(id -u)/com.joechallis.fpl-freeze
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.joechallis.fpl-freeze</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/anaconda3/bin/python3</string>
+        <string>/Users/joechallis/fpl/scripts/freeze.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/joechallis/fpl</string>
+
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/joechallis/fpl/data/freeze.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/joechallis/fpl/data/freeze.stderr.log</string>
+</dict>
+</plist>
