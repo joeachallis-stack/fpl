@@ -406,6 +406,55 @@ without returning to the earlier multi-megabyte format. The current 1,236 finali
 observation rows reconstruct official total points exactly. There are no frozen projection
 archives yet, so real forecast-error tables begin with the next pre-deadline archive.
 
+### Penalty duty — built and wired in 2026-09-05
+
+`penalties_order` had been snapshotted daily since 2026-09-03 specifically because the API
+never backfills it, and nothing read it. That was an omission rather than a missing
+refinement: the projection allocates team goals by xG share and **official xG already
+includes penalties**, so a player who had just gained duty got no credit, one who had lost
+it kept credit he no longer earned, and an established taker was paid only diffusely
+through an inflated share.
+
+`scripts/set_pieces.py` splits the team's goal expectation. Penalties are modelled
+explicitly and assigned to whoever is on duty; the remainder is allocated by xG with the
+estimated penalty component removed, which is what stops a taker being paid twice. Total
+is conserved — anything not assignable to a known taker returns to the open-play pool —
+and assists scale with open play only, since a penalty has no assist.
+
+**The rate came from our own data, not an assumption.** There is no `penalties_scored`
+field anywhere in the API, but `penalties_missed` exists, and missed volume at a known
+conversion rate implies taken volume: 14 and 15 misses over 760 team-matches in the two
+cached seasons give 0.088 and 0.094 penalties per team-match at 79% conversion. Consistent
+across seasons, but resting on ~15 events, so the sampling error is wide. A first-choice
+taker playing full matches is worth about 0.074 goals per match from penalties.
+
+Measured effect, rebuilding with and without: **22.0 total absolute horizon xP moved
+across 653 players**, concentrated exactly where it should be.
+
+| player | order | P(takes) | delta horizon xP |
+|---|---|---|---|
+| Palmer | 1 | 0.860 | +0.381 |
+| Haaland | 1 | 0.884 | +0.352 |
+| Saka | 1 | 0.692 | +0.255 |
+| B.Fernandes | 1 | 0.987 | +0.080 |
+| Cherki | none | 0 | -0.268 |
+| Gakpo | 3 | 0.024 | -0.222 |
+
+Fernandes gaining only +0.080 despite near-certain duty is the correction working: his xG
+already reflects heavy penalty volume, so stripping it offsets most of the explicit gain.
+Non-takers on high-scoring teams lose slightly because the open-play pool shrank.
+
+The snapshot change detector immediately paid for itself. Between 4 and 5 September:
+Woltemade joined Juventus on loan and lost Newcastle's duty (1 -> None), Osula was promoted
+(2 -> 1), Barry took over at Everton (2 -> 1), and Watkins came off Villa's list. Osula
+correctly still projects zero because he carries a foot injury — the availability override
+and the set-piece model compose properly.
+
+Assumptions that remain unmeasured and should face an ablation once archives resolve: that
+penalty rate scales proportionally with a team's attacking strength, and that current duty
+held across the history each player's xG rate was measured over. The second is wrong
+exactly when duty has changed, which is what `order_changes()` is for.
+
 ### Team attack/defence ratings — built and validated 2026-09-05, not yet adopted
 
 `scripts/ratings.py` fits an independent-Poisson team model,

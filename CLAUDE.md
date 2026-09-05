@@ -129,6 +129,8 @@ scripts/
                         promoted-team priors, and expected goals for any fixture
   train_ratings.py    — walk-forward selection for ratings against the FDR fallback
   goal_exposure.py    — role-state clean-sheet and goals-conceded scoring transform
+  set_pieces.py       — penalty duty: who is on it, what it is worth, and what changed
+                        between dated snapshots
   evaluate_goal_exposure.py — historical isolation check against the old shortcut
   odds.py             — fetch near-term EPL odds; remove bookmaker margin and aggregate
                         fair 1X2 and over/under 2.5 probabilities across UK bookmakers

@@ -19,6 +19,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import minutes
+import set_pieces
 import defcon
 import goal_exposure
 import saves as save_model
@@ -617,6 +618,23 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
 
     minute_rows = minute_payload["players"]
     weights = {}
+    team_takers = set_pieces.load_takers(bootstrap)
+    on_pitch_by_team: dict[int, dict[int, float]] = {}
+    for player in players:
+        row = minute_rows.get(str(player["id"]))
+        if row:
+            on_pitch_by_team.setdefault(player["team"], {})[player["id"]] = (
+                row["exp_minutes"] / 90
+            )
+    taker_probabilities: dict[int, float] = {}
+    penalty_order: dict[int, int] = {}
+    for team_id, order in team_takers.items():
+        for position, element_id in enumerate(order, 1):
+            penalty_order[element_id] = position
+        taker_probabilities.update(
+            set_pieces.taker_probabilities(order, on_pitch_by_team.get(team_id, {}))
+        )
+
     for player in players:
         mins = minute_rows.get(str(player["id"]))
         if not mins or player["element_type"] == 1:
@@ -628,10 +646,22 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         xa_rate, xa_audit = blended_per_90(
             player, target_gw, priors[position], "expected_assists"
         )
+        # Official xG includes penalties, so an established taker would otherwise be paid
+        # twice: once through an inflated share of open play, once through the explicit
+        # penalty term below. Remove the estimated penalty component here.
+        taker_probability = taker_probabilities.get(player["id"], 0.0)
+        penalty_xg = set_pieces.penalty_xg_per_90(taker_probability)
+        open_play_xg_rate = max(xg_rate - penalty_xg, 0.0)
         weights[player["id"]] = {
-            "goal": xg_rate * mins["exp_minutes"] / 90,
+            "goal": open_play_xg_rate * mins["exp_minutes"] / 90,
             "assist": xa_rate * mins["exp_minutes"] / 90,
             "prior_audit": {"expected_goals": xg_audit, "expected_assists": xa_audit},
+            "penalty": {
+                "order": penalty_order.get(player["id"]),
+                "taker_probability": round(taker_probability, 5),
+                "xg_removed_per_90": round(penalty_xg, 5),
+                "total_xg_per_90": round(xg_rate, 5),
+            },
         }
 
     team_weight_totals = {}
@@ -659,8 +689,18 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         assist_weight = weights.get(player["id"], {}).get("assist", 0)
         goal_share = goal_weight / totals.get("goal", 1) if totals.get("goal") else 0
         assist_share = assist_weight / totals.get("assist", 1) if totals.get("assist") else 0
-        exp_goals = team_lam * goal_share
-        exp_assists = team_lam * assisted_goal_rate * assist_share
+        # Split the team's expectation: penalties go to whoever is on duty, the rest is
+        # shared out by penalty-stripped xG. Total is conserved, and anything that cannot
+        # be assigned to a known taker returns to the open-play pool.
+        penalty_split = set_pieces.split_team_lambda(
+            team_lam, team_takers.get(player["team"], []),
+            on_pitch_by_team.get(player["team"], {}),
+        )
+        open_play_lam = penalty_split["open_play_lambda"]
+        exp_penalty_goals = penalty_split["by_player"].get(player["id"], 0.0)
+        exp_goals = open_play_lam * goal_share + exp_penalty_goals
+        # A penalty has no assist, so assists scale with open play only.
+        exp_assists = open_play_lam * assisted_goal_rate * assist_share
         p_play = 1 - mins["bands"]["p_zero"]
         p_60 = mins["bands"]["p_60_plus"]
 
@@ -728,6 +768,20 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                 "shrunk_xg_per_90": round(goal_weight * 90 / mins["exp_minutes"], 4) if mins["exp_minutes"] else 0,
                 "shrunk_xa_per_90": round(assist_weight * 90 / mins["exp_minutes"], 4) if mins["exp_minutes"] else 0,
                 "team_goal_share": round(goal_share, 5),
+                # Penalty goals scale proportionally with team_goal_lambda, and
+                # extend_horizon scales the whole goals component by
+                # team_lam / base_goal_lam, so later fixtures inherit a consistent split
+                # without recomputing it per fixture.
+                "penalties": {
+                    "order": penalty_order.get(player["id"]),
+                    "taker_probability": round(
+                        penalty_split["taker_probabilities"].get(player["id"], 0.0), 5),
+                    "expected_penalty_goals": round(exp_penalty_goals, 5),
+                    "open_play_lambda": round(open_play_lam, 5),
+                    "team_penalty_goals": round(penalty_split["penalty_goals_total"], 5),
+                    "xg_removed_per_90": weights.get(player["id"], {}).get(
+                        "penalty", {}).get("xg_removed_per_90"),
+                },
                 "team_assist_share": round(assist_share, 5),
                 "prior_audit": weights.get(player["id"], {}).get("prior_audit"),
             },
