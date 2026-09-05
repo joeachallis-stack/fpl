@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-05T21:40:59+00:00",
+  "generated_at": "2026-09-05T21:52:40+00:00",
   "model": "team-ratings-v1",
   "eval_season": "2025-26",
   "prehistory_season": "2024-25",
@@ -60,6 +60,47 @@
         "bias": 0.00374
       }
     }
+  },
+  "promoted_prior_ablation": {
+    "question": "promoted-team prior minus league-average prior; negative favours the prior",
+    "promoted_teams": [
+      "Burnley",
+      "Leeds",
+      "Sunderland"
+    ],
+    "by_matches_played": {
+      "0-4": {
+        "n": 90,
+        "mean_delta_nll": -0.00751,
+        "se": 0.01356,
+        "t": -0.55
+      },
+      "5-9": {
+        "n": 90,
+        "mean_delta_nll": 0.02052,
+        "se": 0.01323,
+        "t": 1.55
+      },
+      "10-19": {
+        "n": 180,
+        "mean_delta_nll": 0.00696,
+        "se": 0.0074,
+        "t": 0.94
+      },
+      "20+": {
+        "n": 279,
+        "mean_delta_nll": -0.00163,
+        "se": 0.00422,
+        "t": -0.39
+      }
+    },
+    "pooled": {
+      "n": 639,
+      "mean_delta_nll": 0.00308,
+      "se": 0.00386,
+      "t": 0.8
+    },
+    "verdict": "not evidence-selected: no bucket reaches |t| = 2 and the sign flips between buckets. Retained on a priori grounds only, because at zero history the alternative is to call a promoted side exactly league average. The prior's influence is fully gone by 20+ matches, which is the convergence claim."
   },
   "incumbent_note": "FDR replicated in production form with difficulty proxied by rolling goal-difference tiers and buckets calibrated on actual goals, both of which favour the incumbent over the live static-FDR, odds-calibrated version",
   "baselines": {

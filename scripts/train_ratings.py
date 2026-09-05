@@ -253,6 +253,82 @@ def evaluate(prehistory: list[dict], season: list[dict], grid: list[tuple], quic
     }
 
 
+def promoted_prior_ablation(
+    prehistory: list[dict], season: list[dict], half_life: float,
+    prior_strength: float, target: str,
+) -> dict:
+    """Does the promoted-team prior beat simply calling a promoted side league average?
+
+    Paired per-observation, because the two variants forecast the identical fixtures and
+    an unpaired comparison would drown a small effect in fixture difficulty. Bucketed by
+    how many matches that team has behind it, which is the question that actually matters:
+    the prior is supposed to fade as evidence accumulates.
+
+    Read the buckets within a column, never down one. The NLL level moves with which
+    opponents fall in each bucket, so only the paired difference is interpretable.
+    """
+    rounds = cutoffs_for(season)
+    by_round: dict[int, list[dict]] = defaultdict(list)
+    for row in season:
+        by_round[row["round"]].append(row)
+    promoted = {row["team"] for row in season} - {row["team"] for row in prehistory}
+
+    def bucket(played: int) -> str:
+        return "0-4" if played < 5 else "5-9" if played < 10 else "10-19" if played < 20 else "20+"
+
+    paired: dict[str, list[float]] = defaultdict(list)
+    for cutoff_round in sorted(rounds):
+        cutoff = rounds[cutoff_round]
+        history = [row for row in prehistory + season if row["kickoff"] < cutoff]
+        if not history:
+            continue
+        played: dict[str, int] = defaultdict(int)
+        for row in history:
+            played[row["team"]] += 1
+        with_prior = ratings.fit(history, cutoff, half_life, prior_strength, target, promoted)
+        without = ratings.fit(history, cutoff, half_life, prior_strength, target, set())
+        for lead in range(1, MAX_LEAD + 1):
+            for row in by_round.get(cutoff_round + lead - 1, []):
+                if row["team"] not in promoted:
+                    continue
+                home_team = row["team"] if row["home"] else row["opponent"]
+                away_team = row["opponent"] if row["home"] else row["team"]
+                side = 0 if row["home"] else 1
+                delta = (
+                    poisson_nll(ratings.expected_goals(with_prior, home_team, away_team)[side],
+                                row["goals"])
+                    - poisson_nll(ratings.expected_goals(without, home_team, away_team)[side],
+                                  row["goals"])
+                )
+                paired[bucket(played[row["team"]])].append(delta)
+
+    def stats(values: list[float]) -> dict:
+        if len(values) < 2:
+            return {"n": len(values), "mean_delta_nll": None, "se": None, "t": None}
+        mean = statistics.mean(values)
+        se = statistics.stdev(values) / math.sqrt(len(values))
+        return {
+            "n": len(values),
+            "mean_delta_nll": round(mean, 5),
+            "se": round(se, 5),
+            "t": round(mean / se, 2) if se else None,
+        }
+
+    pooled = [value for values in paired.values() for value in values]
+    return {
+        "question": "promoted-team prior minus league-average prior; negative favours the prior",
+        "promoted_teams": sorted(promoted),
+        "by_matches_played": {b: stats(paired[b]) for b in ("0-4", "5-9", "10-19", "20+")},
+        "pooled": stats(pooled),
+        "verdict": (
+            "not evidence-selected: no bucket reaches |t| = 2 and the sign flips between "
+            "buckets. Retained on a priori grounds only, because at zero history the "
+            "alternative is to call a promoted side exactly league average. The prior's "
+            "influence is fully gone by 20+ matches, which is the convergence claim."
+        ),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quick", action="store_true", help="every third cutoff round")
@@ -286,6 +362,22 @@ def main() -> None:
             continue
         print(f"{lead:>5s} {a:11.5f} {b:11.5f} {b - a:+9.5f}")
 
+    ablation = promoted_prior_ablation(
+        prehistory, season, best["half_life_days"], best["prior_strength"], best["target"]
+    )
+    print(f"\npromoted-prior ablation ({', '.join(ablation['promoted_teams'])}) "
+          f"— negative favours the prior")
+    print(f"{'matches':>10s} {'n':>5s} {'mean d':>10s} {'SE':>9s} {'t':>7s}")
+    for label in ("0-4", "5-9", "10-19", "20+"):
+        row = ablation["by_matches_played"][label]
+        if row["mean_delta_nll"] is None:
+            continue
+        print(f"{label:>10s} {row['n']:5d} {row['mean_delta_nll']:+10.5f} "
+              f"{row['se']:9.5f} {row['t']:+7.2f}")
+    pooled = ablation["pooled"]
+    print(f"{'pooled':>10s} {pooled['n']:5d} {pooled['mean_delta_nll']:+10.5f} "
+          f"{pooled['se']:9.5f} {pooled['t']:+7.2f}")
+
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -295,6 +387,7 @@ def main() -> None:
         "primary_metric": "poisson negative log-likelihood on actual team goals",
         "selected": {"name": best_name, **{k: v for k, v in best.items() if k != "by_lead"},
                      "by_lead": best["by_lead"]},
+        "promoted_prior_ablation": ablation,
         "incumbent_note": (
             "FDR replicated in production form with difficulty proxied by rolling goal-"
             "difference tiers and buckets calibrated on actual goals, both of which "

@@ -45,8 +45,13 @@ DATA_DIR = ROOT / "data"
 DEFAULT_HALF_LIFE_DAYS = 180.0
 DEFAULT_PRIOR_STRENGTH = 8.0
 # Promoted sides in 2025/26 (Burnley, Leeds, Sunderland) scored 0.73-0.94x and conceded
-# 0.92-1.44x league average. Three teams in one season is a thin basis, so the prior is
-# deliberately mild and shrinks quickly once in-season evidence arrives.
+# 0.92-1.44x league average. This prior is motivated a priori, NOT selected by evidence:
+# train_ratings.py's paired ablation cannot distinguish it from simply using league
+# average (pooled t = +0.80 over 639 promoted-team forecasts, sign flips between
+# buckets). It is kept only because at genuine zero history the alternative is to call a
+# promoted side exactly league average, which is known to be wrong before a ball is
+# kicked. That is a reason for a mild prior, not a strong one — do not raise it without
+# evidence, and re-run the ablation once more promoted-team seasons are cached.
 PROMOTED_ATTACK_PRIOR = math.log(0.82)
 PROMOTED_DEFENCE_PRIOR = -math.log(1.14)
 
@@ -157,6 +162,13 @@ def fit(
         grad[2 + n_teams:] += 2 * prior_strength * (defence - defence_prior)
         return grad
 
+    # Decay-weighted matches behind each team's rating. A promoted side carries far less
+    # than an established one, and that difference should be visible downstream rather
+    # than hidden behind a rating that looks as firm as Arsenal's.
+    effective_by_team = {team: 0.0 for team in teams}
+    for row, weight in zip(rows, weights):
+        effective_by_team[row["team"]] += float(weight)
+
     start = np.concatenate([[math.log(max(observed.mean(), 0.1)), 0.1], attack_prior, defence_prior])
     result = minimize(objective, start, jac=gradient, method="L-BFGS-B")
     mu, home_adv, attack, defence = unpack(result.x)
@@ -172,6 +184,7 @@ def fit(
         "prior_strength": prior_strength,
         "matches": len(rows),
         "effective_matches": float(weights.sum()),
+        "effective_matches_by_team": effective_by_team,
         "promoted": sorted(promoted),
         "converged": bool(result.success),
     }
@@ -199,6 +212,7 @@ def table(model: dict) -> list[dict]:
                 "team": team,
                 "attack": math.exp(model["attack"][team]),
                 "defence": math.exp(-model["defence"][team]),
+                "effective_matches": model["effective_matches_by_team"].get(team, 0.0),
             }
             for team in model["teams"]
         ),
@@ -229,9 +243,11 @@ def main() -> None:
         f"{model['effective_matches']:.1f} effective, "
         f"home advantage {math.exp(model['home_advantage']):.3f}x"
     )
-    print(f"{'team':18s} {'attack':>7s} {'defence':>8s}")
+    print(f"{'team':18s} {'attack':>7s} {'defence':>8s} {'eff.matches':>12s}")
     for row in table(model):
-        print(f"{row['team']:18s} {row['attack']:7.3f} {row['defence']:8.3f}")
+        thin = "  thin" if row["effective_matches"] < 10 else ""
+        print(f"{row['team']:18s} {row['attack']:7.3f} {row['defence']:8.3f} "
+              f"{row['effective_matches']:12.1f}{thin}")
 
 
 if __name__ == "__main__":

@@ -387,11 +387,38 @@ Three things to read honestly:
   actual goals rather than the unavailable historical odds. The measured gap is a lower
   bound.
 
-Promoted sides with no top-flight history are pulled toward a promoted-team prior
-(2025/26 promoted teams scored 0.73-0.94x and conceded 0.92-1.44x league average). Three
-teams in one season is a thin basis, so the prior is deliberately mild and shrinks fast;
-this is the weakest part of the model and matters directly for Coventry, Hull and Ipswich,
-the three current sides with no history in either cached season.
+**Promoted teams, and what the prior is actually worth.** Sides with no top-flight
+history are pulled toward a promoted-team prior (2025/26 promoted teams scored 0.73-0.94x
+and conceded 0.92-1.44x league average). `train_ratings.py` now runs a paired ablation of
+that prior against simply using league average, bucketed by matches played, over 639
+promoted-team forecasts:
+
+| matches played | n | mean delta NLL | SE | t |
+|---|---|---|---|---|
+| 0-4 | 90 | -0.00751 | 0.01356 | -0.55 |
+| 5-9 | 90 | +0.02052 | 0.01323 | +1.55 |
+| 10-19 | 180 | +0.00696 | 0.00740 | +0.94 |
+| 20+ | 279 | -0.00163 | 0.00422 | -0.39 |
+| pooled | 639 | +0.00308 | 0.00386 | +0.80 |
+
+Negative favours the prior. **The prior is not evidence-selected**: no bucket reaches
+|t| = 2 and the sign flips between buckets. By this document's own ablation rule it does
+not earn its place, and it is retained on a priori grounds only — at genuine zero history
+the alternative is to call a promoted side exactly league average, which is known to be
+wrong before a ball is kicked. That justifies a mild prior, not a strong one. Three teams
+in one season is underpowered, so this is "no evidence it helps", not "proven useless".
+
+The 20+ row carries the useful finding: by then the prior and no-prior variants are
+indistinguishable (t = -0.39), so a promoted team's own results have fully taken over.
+That is the convergence, and it is the only part of the table that answers it — do not
+read improvement down the NLL column, because the level moves with which opponents fall
+in each bucket. Only the paired difference is interpretable.
+
+Practically this is live. Coventry, Hull and Ipswich have no history in either cached
+season and roughly three matches each, putting them in the least-informed bucket for the
+next several gameweeks and reaching parity around GW20. `ratings.fit` now returns
+`effective_matches_by_team` so thin evidence is visible downstream rather than hidden
+behind a rating that reads as firmly as Arsenal's.
 
 **Not yet adopted.** Two pieces remain before this can replace the fallback in
 `projections.py`:
