@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import minutes
 import projections
 import train_defcon
+import train_saves
 
 
 class CompletedHistoryTests(unittest.TestCase):
@@ -171,6 +172,42 @@ class DefconTests(unittest.TestCase):
         self.assertLess(selected["log_loss"], old["log_loss"])
         self.assertLess(selected["brier"], old["brier"])
         self.assertLess(selected["log_loss"], collapsed["log_loss"])
+
+
+class SaveTests(unittest.TestCase):
+    def test_save_thresholds_use_role_states_not_only_mean_minutes(self):
+        target = {"element": 1, "team": "A", "opponent": "B", "home": True, "gw": 4}
+        common = {
+            "halflife": 12.0,
+            "player_prior_minutes": 900.0,
+            "dispersion": 0.25,
+            "context_mode": "none",
+            "context_prior_minutes": 1800.0,
+            "peer_rate": 3.0,
+            "factor_tables": ({}, {}, {}),
+        }
+        lumpy, _ = train_saves.predict(
+            target, [],
+            {"role_states": {"unused": 0.5, "starter_90_plus": 0.5},
+             "conditional_minutes_by_state": {"unused": 0.0, "starter_90_plus": 90.0}},
+            [], **common,
+        )
+        steady, _ = train_saves.predict(
+            target, [],
+            {"role_states": {"starter_1_59": 1.0},
+             "conditional_minutes_by_state": {"starter_1_59": 45.0}},
+            [], **common,
+        )
+        self.assertGreater(lumpy, steady)
+
+    def test_fitted_save_model_beats_linear_baseline_on_rmse(self):
+        artifact = json.loads((ROOT / "models" / "save_params.json").read_text())
+        selected = artifact["metrics"]["contenders"]
+        baseline = artifact["baseline_linear_saves_over_three"]["contenders"]
+        collapsed = artifact["minutes_ablation"]["single_expected_minutes"]["contenders"]
+        self.assertLess(selected["rmse"], baseline["rmse"])
+        self.assertLess(abs(selected["bias"]), abs(baseline["bias"]))
+        self.assertLess(selected["rmse"], collapsed["rmse"])
 
 
 if __name__ == "__main__":

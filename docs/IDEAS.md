@@ -231,6 +231,43 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
     `models/defcon_params.json`; only 2025/26 has the necessary action fields, so cross-season
     transport remains explicitly unmeasured.
 
+### Defensive and goalkeeper scoring — agreed sequence
+
+Build these one measured component at a time rather than turning them into one opaque
+"defence model":
+
+1. **Goalkeeper save thresholds — BUILT 2026-09-05.** Replaced the linear `expected saves / 3`
+   approximation with a distribution over save counts, mixed over the minutes model's
+   role states. FPL awards a point at 3, 6, 9, ... saves, so the target is
+   `E[floor(saves / 3)]`, not a fractional point for every save. Estimate a recency-
+   weighted keeper rate with partial pooling; test opponent, defending-team and venue
+   factors by walk-forward ablation. Both 2024/25 and 2025/26 contain saves, allowing a
+   cleaner cross-season test than DefCon. Historical bookmaker odds are unavailable, so
+   they were not backfilled with actual results. Walk-forward testing on 856 contender
+   keeper forecasts selected a 12-GW half-life, 900-minute player prior, dispersion 0.25
+   and opponent-only fixture factor. Save-point RMSE improved 0.64510 -> 0.59400 and the
+   old model's +0.233-point bias fell to -0.001. Defending-team and venue factors made the
+   result worse and were excluded. The role-state mixture beat expected minutes on RMSE
+   (0.59400 vs 0.59859), though expected minutes had slightly lower MAE (0.50807 vs
+   0.51871); selection uses RMSE because squared error is proper for a conditional mean.
+2. **Clean-sheet and goals-conceded exposure — after saves.** Keep the bookmaker/FDR
+   opponent-goal model, but integrate its Poisson outcomes inside the full minutes states.
+   Clean-sheet points still require 60 minutes, while a player substituted after 60 keeps
+   the clean sheet if no goal was conceded during his own time on the pitch. Goals-conceded
+   deductions are also nonlinear (`floor(goals / 2)`) and should use the same exposure
+   mixture instead of one expected-minutes value.
+3. **Bonus — wait for evidence.** The 2026/27 BPS changes make prior-season player-type
+   effects directionally unreliable. Keep the transparent current-season fallback until
+   enough finalized 2026/27 weeks exist for a walk-forward challenger.
+4. **Penalty saves — defer.** Preserve them in observations, but do not fit a noisy
+   player-specific rare-event model without enough evidence. A strongly pooled future
+   model must beat an explicit zero/frequency baseline before earning a place in xP.
+
+For each component, evaluate all players diagnostically but select parameters on the
+pre-deadline-reproducible contender population. Freeze source hashes, parameters,
+intermediate rates and threshold probabilities so later recalibration can explain why a
+forecast changed.
+
 ## Future decision dashboard
 
 Once the command-line data contracts are stable, build a local/static HTML decision

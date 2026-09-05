@@ -20,12 +20,13 @@ from pathlib import Path
 
 import minutes
 import defcon
+import saves as save_model
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "projections.json"
 ARCHIVE_DIR = ROOT / "projections"
-MODEL_VERSION = "baseline-v3-defcon"
+MODEL_VERSION = "baseline-v4-saves"
 PRIOR_STRENGTH = 5.0
 # Last season is useful early evidence, but not a permanent claim about the player's
 # current role. Ten matches is an explicit starting assumption to recalibrate from the
@@ -399,7 +400,7 @@ def fdr_goal_priors(odds_rows: list[dict], fixtures: list[dict]) -> tuple[dict, 
 
 def extend_horizon(
     payload: dict, bootstrap: dict, fixtures: list[dict], odds_payload: dict,
-    horizon: int, defcon_context: dict | None,
+    horizon: int, defcon_context: dict | None, save_context: dict | None,
 ) -> None:
     def compact_defcon(prediction: dict) -> dict:
         """Fixture-varying fields only; common player evidence lives on the record."""
@@ -412,6 +413,21 @@ def extend_horizon(
             "fixture_factors": {
                 key: round(audit[key], 6)
                 for key in ("opponent_factor", "venue_factor", "fixture_factor")
+                if key in audit
+            }
+        }
+
+    def compact_saves(prediction: dict) -> dict:
+        audit = prediction.get("audit", {})
+        return {
+            key: prediction[key] for key in (
+                "expected_points", "expected_saves", "threshold_probabilities",
+                "source", "minutes_scenario_source",
+            ) if key in prediction
+        } | {
+            "fixture_factors": {
+                key: round(audit[key], 6)
+                for key in ("opponent_factor", "team_factor", "venue_factor", "fixture_factor")
                 if key in audit
             }
         }
@@ -491,13 +507,20 @@ def extend_horizon(
                 defcon_prediction = defcon.predict(
                     players_by_id[record["element"]], record["position"], record["team"],
                     team_names[opponent_id], home, target_gw,
-                    record["defcon_minutes_input"], defcon_context,
+                    record["minutes_scenario_input"], defcon_context,
                 )
                 if defcon_prediction["probability"] is not None:
                     components["defcon"] = (
                         scoring["defensive_contribution"][record["position"]]
                         * defcon_prediction["probability"]
                     )
+                save_prediction = save_model.predict(
+                    players_by_id[record["element"]], record["position"], record["team"],
+                    team_names[opponent_id], home, target_gw,
+                    record["minutes_scenario_input"], save_context,
+                )
+                if save_prediction["expected_points"] is not None:
+                    components["saves"] = scoring["saves"] * save_prediction["expected_points"]
                 for key, value in components.items():
                     gw_components[key] += value
                 fixture_forecasts.append({
@@ -509,6 +532,7 @@ def extend_horizon(
                     "opponent_goal_lambda": round(opponent_lam, 3),
                     "goal_model_fit_error": round(fit_error, 6) if fit_error is not None else None,
                     "defcon_model": compact_defcon(defcon_prediction),
+                    "save_model": compact_saves(save_prediction),
                     **({
                         "fdr_calibration": {
                             "team": team_bucket,
@@ -578,6 +602,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
 
     players = bootstrap["elements"]
     defcon_context = defcon.load_context(bootstrap, config["season"])
+    save_context = save_model.load_context(bootstrap, config["season"])
     types = {row["id"]: row["singular_name_short"] for row in bootstrap["element_types"]}
     priors = build_priors(players, types, target_gw)
     team_names = {team["id"]: team["name"] for team in bootstrap["teams"]}
@@ -656,7 +681,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             mins["exp_minutes"], scoring["defensive_contribution"][position],
         )
         components.update({key: hist[key] for key in ("yellow", "red", "defcon", "bonus", "saves")})
-        defcon_minutes_input = {
+        minutes_scenario_input = {
             "source": mins["source"],
             "role_states": mins.get("role_states"),
             "conditional_minutes_by_state": mins.get("conditional_minutes_by_state"),
@@ -666,7 +691,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         defcon_prediction = defcon.predict(
             player, position, team,
             fixture["away_team"] if team == fixture["home_team"] else fixture["home_team"],
-            team == fixture["home_team"], target_gw, defcon_minutes_input, defcon_context,
+            team == fixture["home_team"], target_gw, minutes_scenario_input, defcon_context,
         )
         if defcon_prediction["probability"] is not None:
             components["defcon"] = (
@@ -674,6 +699,14 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                 * defcon_prediction["probability"]
             )
             hist["prior_audit"]["defcon"] = "trained threshold model; see defcon_model audit"
+        save_prediction = save_model.predict(
+            player, position, team,
+            fixture["away_team"] if team == fixture["home_team"] else fixture["home_team"],
+            team == fixture["home_team"], target_gw, minutes_scenario_input, save_context,
+        )
+        if save_prediction["expected_points"] is not None:
+            components["saves"] = scoring["saves"] * save_prediction["expected_points"]
+            hist["prior_audit"]["saves"] = "trained save-count model; see save_model audit"
         rounded = {key: round(value, 3) for key, value in components.items()}
         records[str(player["id"])] = {
             "element": player["id"],
@@ -686,7 +719,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "exp_minutes": mins["exp_minutes"],
             "minutes_bands": mins["bands"],
             "minutes_source": mins["source"],
-            "defcon_minutes_input": defcon_minutes_input,
+            "minutes_scenario_input": minutes_scenario_input,
             "status": mins["status"],
             "now_cost": player["now_cost"],
             "expected_goals": round(exp_goals, 3),
@@ -710,6 +743,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "history_appearances": hist["history_appearances"],
             "component_prior_audit": hist["prior_audit"],
             "defcon_model": defcon_prediction,
+            "save_model": save_prediction,
             "previous_season_actuals": previous_season_snapshot(
                 previous_season_for(player["id"])
             ),
@@ -756,12 +790,28 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                     "trained DefCon model unavailable; corrected current-season hit-rate fallback used"
                 ]
             ),
+            "save_model": (
+                save_context["model"]["model_version"] if save_context else None
+            ),
+            "save_model_sha256": (
+                save_context["model"]["_artifact_sha256"] if save_context else None
+            ),
+            "save_current_finalized_rows": (
+                save_context["current_rows"] if save_context else 0
+            ),
+            "save_model_limits": (
+                save_context["model"]["known_limits"] if save_context else [
+                    "trained save model unavailable; linear saves-over-three fallback used"
+                ]
+            ),
         },
         "priors": priors,
         "players": records,
     }
     fixtures = load(DATA_DIR / "fixtures.json")
-    extend_horizon(payload, bootstrap, fixtures, odds_payload, horizon, defcon_context)
+    extend_horizon(
+        payload, bootstrap, fixtures, odds_payload, horizon, defcon_context, save_context
+    )
     assign_calibration_weights(payload, bootstrap)
     OUT.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote {OUT.relative_to(ROOT)} — {len(records)} players, GW{target_gw}")

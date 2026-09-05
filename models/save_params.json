@@ -1,0 +1,2505 @@
+{
+  "model_version": "goalkeeper-saves-v1",
+  "trained_at": "2026-09-05T18:25:17.652494+00:00",
+  "training_season": "2025/26",
+  "training_rows": 3427,
+  "prior_season": "2024/25",
+  "prior_rows": 2869,
+  "source": {
+    "training_gameweeks": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2025-26/gws/merged_gw.csv",
+    "training_players": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2025-26/players_raw.csv",
+    "prior_gameweeks": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2024-25/gws/merged_gw.csv",
+    "prior_players": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2024-25/players_raw.csv"
+  },
+  "source_sha256": {
+    "2025-26_merged_gw.csv": "0d09f1f1cb1b5520ec8e2f25238aa652efe2a263d8ca7cb2b6538b27bf86727d",
+    "2025-26_players_raw.csv": "412ce0172016f8f98f25177dc6de9f3cd2a8ec7a6135f9aa638d7fdee784d67b",
+    "2024-25_merged_gw.csv": "5bbbcba6353b4c72ad273adcc8e3aa451946a826564679788f45b1cb3325b84e",
+    "2024-25_players_raw.csv": "75686051b265cbe7755ac71213ecaad21b26ee1cc46a8bafbba19c39ce894b05"
+  },
+  "minutes_model_sha256": "09f637eff2b35f4d629f3b9c1f4fc896d9a63890adc2ec9a49d634853c63219e",
+  "selected": {
+    "decay_halflife_gws": 12.0,
+    "player_prior_minutes": 900.0,
+    "dispersion": 0.25,
+    "context_mode": "opponent",
+    "context_prior_minutes": 1800.0,
+    "club_change_retention": 0.5,
+    "offseason_gap_gws": 4
+  },
+  "selection_policy": "minimize save-point RMSE on keepers averaging >=30 minutes over their prior three matches; predict 2025/26 forward using only older match rows",
+  "target": "E[floor(saves / 3)] from a role-state mixture of save-count distributions",
+  "baseline_linear_saves_over_three": {
+    "all": {
+      "n": 3427,
+      "mae": 0.1715981329862703,
+      "rmse": 0.33996201666355547,
+      "bias": 0.0793038762576988,
+      "actual_mean": 0.13072658301721624,
+      "predicted_mean": 0.210030459274915
+    },
+    "contenders": {
+      "n": 856,
+      "mae": 0.542194894420669,
+      "rmse": 0.645100978739422,
+      "bias": 0.23311805715296247,
+      "actual_mean": 0.4883177570093458,
+      "predicted_mean": 0.7214358141623083
+    },
+    "early_contenders": {
+      "n": 119,
+      "mae": 0.5482666242642774,
+      "rmse": 0.6283789142437914,
+      "bias": 0.37268327786479605,
+      "actual_mean": 0.3025210084033613,
+      "predicted_mean": 0.6752042862681574
+    },
+    "later_contenders": {
+      "n": 737,
+      "mae": 0.5412145201311312,
+      "rmse": 0.6477605366538052,
+      "bias": 0.21058310292676408,
+      "actual_mean": 0.5183175033921302,
+      "predicted_mean": 0.7289006063188944
+    }
+  },
+  "metrics": {
+    "all": {
+      "n": 3427,
+      "mae": 0.1566116154477863,
+      "rmse": 0.3135511360973274,
+      "bias": 0.010766769161285867,
+      "actual_mean": 0.13072658301721624,
+      "predicted_mean": 0.1414933521785021
+    },
+    "contenders": {
+      "n": 856,
+      "mae": 0.5187064202012673,
+      "rmse": 0.5940003406926667,
+      "bias": -0.0011922262718069092,
+      "actual_mean": 0.4883177570093458,
+      "predicted_mean": 0.48712553073753884
+    },
+    "early_contenders": {
+      "n": 119,
+      "mae": 0.4741280158569579,
+      "rmse": 0.5251208989265552,
+      "bias": 0.17430976952108174,
+      "actual_mean": 0.3025210084033613,
+      "predicted_mean": 0.47683077792444306
+    },
+    "later_contenders": {
+      "n": 737,
+      "mae": 0.5259042901021802,
+      "rmse": 0.6043863629434684,
+      "bias": -0.029529726270930038,
+      "actual_mean": 0.5183175033921302,
+      "predicted_mean": 0.4887877771212002
+    }
+  },
+  "minutes_ablation": {
+    "role_state_mixture": {
+      "all": {
+        "n": 3427,
+        "mae": 0.1566116154477863,
+        "rmse": 0.3135511360973274,
+        "bias": 0.010766769161285867,
+        "actual_mean": 0.13072658301721624,
+        "predicted_mean": 0.1414933521785021
+      },
+      "contenders": {
+        "n": 856,
+        "mae": 0.5187064202012673,
+        "rmse": 0.5940003406926667,
+        "bias": -0.0011922262718069092,
+        "actual_mean": 0.4883177570093458,
+        "predicted_mean": 0.48712553073753884
+      },
+      "early_contenders": {
+        "n": 119,
+        "mae": 0.4741280158569579,
+        "rmse": 0.5251208989265552,
+        "bias": 0.17430976952108174,
+        "actual_mean": 0.3025210084033613,
+        "predicted_mean": 0.47683077792444306
+      },
+      "later_contenders": {
+        "n": 737,
+        "mae": 0.5259042901021802,
+        "rmse": 0.6043863629434684,
+        "bias": -0.029529726270930038,
+        "actual_mean": 0.5183175033921302,
+        "predicted_mean": 0.4887877771212002
+      }
+    },
+    "single_expected_minutes": {
+      "all": {
+        "n": 3427,
+        "mae": 0.13858657108668831,
+        "rmse": 0.3148082511528712,
+        "bias": -0.016546306659036183,
+        "actual_mean": 0.13072658301721624,
+        "predicted_mean": 0.11418027635818004
+      },
+      "contenders": {
+        "n": 856,
+        "mae": 0.5080706293024978,
+        "rmse": 0.5985931787414241,
+        "bias": -0.045649823084935044,
+        "actual_mean": 0.4883177570093458,
+        "predicted_mean": 0.44266793392441073
+      },
+      "early_contenders": {
+        "n": 119,
+        "mae": 0.44107265098531473,
+        "rmse": 0.511924526560778,
+        "bias": 0.12042331823617074,
+        "actual_mean": 0.3025210084033613,
+        "predicted_mean": 0.42294432663953213
+      },
+      "later_contenders": {
+        "n": 737,
+        "mae": 0.5188884846888544,
+        "rmse": 0.6114363137407542,
+        "bias": -0.07246488932267126,
+        "actual_mean": 0.5183175033921302,
+        "predicted_mean": 0.445852614069459
+      }
+    }
+  },
+  "base_grid": [
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15547365922703663,
+          "rmse": 0.31503938132636833,
+          "bias": 0.002857197837873067,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1335837808550893
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5193268543644151,
+          "rmse": 0.5978058011310838,
+          "bias": -0.02747023887015163,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.46084751813919417
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4542191387911885,
+          "rmse": 0.5100094298808603,
+          "bias": 0.10871179571612635,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.41123280411948765
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5298394977202006,
+          "rmse": 0.6107996799487118,
+          "bias": -0.04945892559439461,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.46885857779773565
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15583856978723812,
+          "rmse": 0.31495755401035774,
+          "bias": 0.004326642382697076,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1350532253999133
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5199192005025314,
+          "rmse": 0.597568219024482,
+          "bias": -0.02252404820585169,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.46579370880349413
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4561873821895735,
+          "rmse": 0.5109456048062143,
+          "bias": 0.11387393520519018,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.41639494360855156
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5302096840564554,
+          "rmse": 0.6104031995648889,
+          "bias": -0.04454760319352331,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.473769900198607
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15644231433978187,
+          "rmse": 0.31489454875174644,
+          "bias": 0.006969227741144207,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13769581075836043
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5208401052823081,
+          "rmse": 0.597313301344903,
+          "bias": -0.01356215070658958,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.47475560630275626
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.45953578353474334,
+          "rmse": 0.5128330589757574,
+          "bias": 0.12277463237555597,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.42529564077891735
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5307386321316435,
+          "rmse": 0.6098575920138991,
+          "bias": -0.03557582395865922,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.48274167943347107
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15741280967297544,
+          "rmse": 0.31497308781924904,
+          "bias": 0.011419208545811424,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14214579156302765
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.522263556893983,
+          "rmse": 0.5972622556984938,
+          "bias": 0.001587783076429958,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.48990554008577575
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46501691337507906,
+          "rmse": 0.5164217597717197,
+          "bias": 0.1374315800169929,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.43995258842035423
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5315069091039553,
+          "rmse": 0.6093103118220597,
+          "bias": -0.0203462899709608,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.49797121342116946
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15903269123422692,
+          "rmse": 0.31560388765149966,
+          "bias": 0.0190664414873506,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14979302450456683
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5245763849063424,
+          "rmse": 0.5981907028102392,
+          "bias": 0.027681886848647363,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.5159996438579931
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.47427855204254354,
+          "rmse": 0.5236086096456544,
+          "bias": 0.16227369374448636,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.46479470214784774
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5326977446224781,
+          "rmse": 0.6093778005863508,
+          "bias": 0.005949966874963727,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.524267470267094
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15633456764151615,
+          "rmse": 0.3151351763035992,
+          "bias": 0.002932568206096855,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1336591512233131
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5226928302308302,
+          "rmse": 0.5980570680763191,
+          "bias": -0.027305027497391124,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4610127295119547
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4550879663856198,
+          "rmse": 0.5082446243420149,
+          "bias": 0.11055185122211228,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.41307285962547363
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5336086766318887,
+          "rmse": 0.6113226674246057,
+          "bias": -0.04956414359999751,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.46875335979213273
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.156684100867256,
+          "rmse": 0.3150820803275236,
+          "bias": 0.004388930342287205,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13511551335950342
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.523225658436435,
+          "rmse": 0.597878840591425,
+          "bias": -0.022408128597024745,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4659096284123211
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.45702849390992034,
+          "rmse": 0.5092592624183503,
+          "bias": 0.11566099983919867,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.41818200824256
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5339142101035383,
+          "rmse": 0.6109837496527225,
+          "bias": -0.04470151568509881,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.47361598770703145
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15727486993504858,
+          "rmse": 0.3150445738175272,
+          "bias": 0.007028478880725699,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13775506189794193
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5240959919819127,
+          "rmse": 0.597676312934921,
+          "bias": -0.013456145141892372,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4748616118674534
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4603627283241972,
+          "rmse": 0.5112351650558453,
+          "bias": 0.12453400603535848,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.42705501443871985
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5343867089090066,
+          "rmse": 0.6104869653044026,
+          "bias": -0.0357367801352341,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4825807232568961
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15823620337801186,
+          "rmse": 0.3151453592497173,
+          "bias": 0.011483201507811546,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14220978452502778
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5254834620404711,
+          "rmse": 0.5976706378702431,
+          "bias": 0.001714079504916347,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.49003183651426213
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46584206536603734,
+          "rmse": 0.5149242958169211,
+          "bias": 0.139187038762318,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.44170804716567935
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5351134840272522,
+          "rmse": 0.609979677124746,
+          "bias": -0.020483046888069806,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.49783445650406044
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1598534468342386,
+          "rmse": 0.3157954878264456,
+          "bias": 0.01914283681228678,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14986941982950303
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.527785530932938,
+          "rmse": 0.5986379677091138,
+          "bias": 0.027857810026249506,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.5161755670355953
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.475116709254644,
+          "rmse": 0.5222336241095601,
+          "bias": 0.16405443875769585,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4665754471610572
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5362897233070452,
+          "rmse": 0.6100780489293139,
+          "bias": 0.005866766852515295,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.5241842702446455
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15694135046843405,
+          "rmse": 0.3156141749985328,
+          "bias": 0.0030022285293139373,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13372881154653016
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5250778857969988,
+          "rmse": 0.5990947551071389,
+          "bias": -0.027103723974609393,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4612140330347364
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.45569408099158115,
+          "rmse": 0.5076883293817798,
+          "bias": 0.11173685012879357,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4142578585321549
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5362809696122561,
+          "rmse": 0.6125761255557587,
+          "bias": -0.04952167284612222,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.468795830546008
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15727941805697782,
+          "rmse": 0.3155666824293394,
+          "bias": 0.004451576914957224,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13517815993217344
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.525565870830587,
+          "rmse": 0.5989277903917883,
+          "bias": -0.02223323522850379,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.466084521780842
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4576177548396343,
+          "rmse": 0.5087336104308131,
+          "bias": 0.11681628168805845,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4193372900914198
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5365371405767517,
+          "rmse": 0.61224638522753,
+          "bias": -0.0446849211349772,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.47363258225715305
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1578603950460179,
+          "rmse": 0.3155351131634642,
+          "bias": 0.007088781875949708,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13781536489316593
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5263977864638946,
+          "rmse": 0.5987372234492404,
+          "bias": -0.013289332118529663,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.47502842489081615
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46094167362254257,
+          "rmse": 0.5107475550060699,
+          "bias": 0.12567052221698444,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.42819153062034576
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5369666839240314,
+          "rmse": 0.6117589651587435,
+          "bias": -0.03572654062046478,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4825909627716655
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15881456030923513,
+          "rmse": 0.3156431600432747,
+          "bias": 0.0115447877767948,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.142271370794011
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5277570434541355,
+          "rmse": 0.5987462970663391,
+          "bias": 0.0018868848183019456,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4902046418276477
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4664170173520138,
+          "rmse": 0.5144842574841111,
+          "bias": 0.14031587421573552,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.44283688261909687
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.537661335321371,
+          "rmse": 0.61126351079832,
+          "bias": -0.02046460736391596,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4978528960282143
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 3.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.16042910348476241,
+          "rmse": 0.3163037810411664,
+          "bias": 0.019209325888654784,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14993590890587102
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5300483678481204,
+          "rmse": 0.5997350902234297,
+          "bias": 0.02805042514413803,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.5163681821534839
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.47569566888074716,
+          "rmse": 0.5218577124155065,
+          "bias": 0.16519015231206333,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4677111607154247
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5388244481427166,
+          "rmse": 0.611380118553641,
+          "bias": 0.005907104203862446,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.5242246075959928
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1553601824410052,
+          "rmse": 0.3148066321240872,
+          "bias": 0.003526242760783027,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13425282577799924
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.518328876173046,
+          "rmse": 0.5971716438757264,
+          "bias": -0.025309714971866747,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.46300804203747903
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46169177847135956,
+          "rmse": 0.5157789914479557,
+          "bias": 0.13040214711663406,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4329231555199954
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5274738078236576,
+          "rmse": 0.6092950661881691,
+          "bias": -0.05045179311098696,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.46786571028114327
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15572781772984937,
+          "rmse": 0.31472807194066793,
+          "bias": 0.0049862695956587825,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.135712852612875
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5189408038362815,
+          "rmse": 0.5969426554596012,
+          "bias": -0.02039307703663831,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.46792467997270754
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4635231386444301,
+          "rmse": 0.5168309145847025,
+          "bias": 0.13515283993396535,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4376738483373267
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5278888393285885,
+          "rmse": 0.6088903846763795,
+          "bias": -0.04550836078087418,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4728091426112561
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15633305438817638,
+          "rmse": 0.31467333537503533,
+          "bias": 0.0076179144087423,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13834449742595853
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5198753203924797,
+          "rmse": 0.5967059842230337,
+          "bias": -0.01146783087987483,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.47684992612947097
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.466754782918683,
+          "rmse": 0.5189909607777171,
+          "bias": 0.14370576355137085,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.44622677195473226
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5284524492383168,
+          "rmse": 0.6083240234354634,
+          "bias": -0.03652299741626321,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4817945059758671
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15730380707193714,
+          "rmse": 0.3147687113648829,
+          "bias": 0.01205720915962614,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14278379217684237
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5213053523265482,
+          "rmse": 0.5966897431412908,
+          "bias": 0.0036444380166055453,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.49196219502595134
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.472151377861959,
+          "rmse": 0.5230914907237197,
+          "bias": 0.1581117714732179,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.46063277987657925
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5292420184884017,
+          "rmse": 0.607738142366629,
+          "bias": -0.021296691808817617,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4970208115833127
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15892235683496564,
+          "rmse": 0.3154321365156753,
+          "bias": 0.01969608207640054,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.15042266509361676
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5236144936628037,
+          "rmse": 0.5976836872004341,
+          "bias": 0.029706374533056575,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.5180241315424023
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.48138373501626985,
+          "rmse": 0.5312044732808219,
+          "bias": 0.18286557642029055,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4853865848236519
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5304333000114299,
+          "rmse": 0.6077362753013663,
+          "bias": 0.004976462695090712,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.523293966087221
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15626091060630504,
+          "rmse": 0.3146973142246396,
+          "bias": 0.003792518336803456,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13451910135401968
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5217525314565332,
+          "rmse": 0.5969895539891157,
+          "bias": -0.024471425899128135,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4638463311102176
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46367167551554034,
+          "rmse": 0.5139649950070401,
+          "bias": 0.13540611512462247,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4379271235279838
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5311305801091495,
+          "rmse": 0.6093353205073554,
+          "bias": -0.05028611705493047,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.46803138633719976
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1566119555257771,
+          "rmse": 0.3146571158066348,
+          "bias": 0.005235087210334304,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1359616702275505
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5223032918006262,
+          "rmse": 0.5968398694262529,
+          "bias": -0.019618514886585066,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4686992421227607
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4654439139865591,
+          "rmse": 0.5151315714771897,
+          "bias": 0.14002311189133704,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4425441202946984
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5314841139985557,
+          "rmse": 0.6090058612594901,
+          "bias": -0.04539511405425499,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4729223893378752
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15720401917715857,
+          "rmse": 0.31463953886644164,
+          "bias": 0.00786126941337574,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13858785243059196
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5231881951142148,
+          "rmse": 0.5966794980483168,
+          "bias": -0.010711262685137824,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.47760649432420793
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46863856565441575,
+          "rmse": 0.5174451491669889,
+          "bias": 0.14848665941679953,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4510076678201609
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5319960728695962,
+          "rmse": 0.608506446147976,
+          "bias": -0.036416218899697594,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4819012844924327
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15816632049376916,
+          "rmse": 0.31477137423995083,
+          "bias": 0.01230487857046191,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14303146158767813
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5245855121085767,
+          "rmse": 0.5967376260788001,
+          "bias": 0.004419929896538576,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4927376869058844
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.47401911004611036,
+          "rmse": 0.5217496236062605,
+          "bias": 0.16284756191778046,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4653685703211418
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5327502364578758,
+          "rmse": 0.6079789486659543,
+          "bias": -0.02116065112181663,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.49715685227031364
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15978400349890545,
+          "rmse": 0.3154729234796341,
+          "bias": 0.01995836159209082,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.15068494460930706
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5268898124736009,
+          "rmse": 0.5978087478000318,
+          "bias": 0.030539168036072352,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.5188569250454181
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.483261485851852,
+          "rmse": 0.5301521157226528,
+          "bias": 0.18761410465803893,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4901351130614003
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5339342776947517,
+          "rmse": 0.6080274458062581,
+          "bias": 0.0051770005218063795,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.5234945039139366
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15699816378295856,
+          "rmse": 0.3150629060242227,
+          "bias": 0.0040274481668676945,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1347540311840839
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5245995673037775,
+          "rmse": 0.5977918835301769,
+          "bias": -0.023667715480805422,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4646500415285404
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4652224682293184,
+          "rmse": 0.5133441702528942,
+          "bias": 0.1392080568967124,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4417290653000737
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5341869143727879,
+          "rmse": 0.6103326163586127,
+          "bias": -0.04996651726224996,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4683509861298803
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15733490288964586,
+          "rmse": 0.3150392574577816,
+          "bias": 0.005457177633649168,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1361837606508654
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5250958923959083,
+          "rmse": 0.5976762826750927,
+          "bias": -0.018862735872757164,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.46945502113658866
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46695415884155017,
+          "rmse": 0.5145716318967798,
+          "bias": 0.14373292941684954,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4462539378202109
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5344837706767341,
+          "rmse": 0.6100341515860943,
+          "bias": -0.04511631005113327,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.473201193340997
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15791521097665742,
+          "rmse": 0.31503991873745424,
+          "bias": 0.00807793686125587,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1388045198784721
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.525935600005642,
+          "rmse": 0.5975533963167098,
+          "bias": -0.009974794386152239,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4783429626231936
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4701203168184166,
+          "rmse": 0.5169757637083116,
+          "bias": 0.1521289636069107,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.454649972010272
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5349478370467272,
+          "rmse": 0.609565946189622,
+          "bias": -0.03614894255599551,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.48216856083613474
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15886935431483593,
+          "rmse": 0.31519329381818634,
+          "bias": 0.012522192339770451,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14324877535698669
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5273011721411531,
+          "rmse": 0.5976558317321077,
+          "bias": 0.005160289119672593,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4934780461290184
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4754847019599769,
+          "rmse": 0.5214105912997075,
+          "bias": 0.16644899426712154,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4689700026704829
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5356677392396063,
+          "rmse": 0.6090724787937786,
+          "bias": -0.020882256216211294,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.49743524717591897
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 6.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.16048472019225174,
+          "rmse": 0.31592356592148485,
+          "bias": 0.020182794995665856,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.15090937801288207
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5295958832657275,
+          "rmse": 0.59878614058632,
+          "bias": 0.03130786844521925,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.519625625454565
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4847273940836488,
+          "rmse": 0.5300105857830086,
+          "bias": 0.1912118108771105,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.49373281928047186
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5368405918310835,
+          "rmse": 0.6091633490832367,
+          "bias": 0.005488914375483758,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.523806417767614
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15570346171443805,
+          "rmse": 0.31454817476487207,
+          "bias": 0.005106168431131274,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1358327514483475
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5182196697675155,
+          "rmse": 0.5965182779865815,
+          "bias": -0.02066199474628423,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.46765576226306155
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4653194631680715,
+          "rmse": 0.5186885067145508,
+          "bias": 0.1444366706893859,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4469576790927472
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5267612228005331,
+          "rmse": 0.6081518342596546,
+          "bias": -0.047319716845123774,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.47099778654700647
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15606624078435444,
+          "rmse": 0.3144869985625277,
+          "bias": 0.006540073550797967,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13726665656801418
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5188353294710797,
+          "rmse": 0.5963251957819128,
+          "bias": -0.015823451705854263,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.47249430530349157
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4670969627875476,
+          "rmse": 0.5198067201872882,
+          "bias": 0.14893975698935125,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.45146076539271257
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5271892855570232,
+          "rmse": 0.6077776281315438,
+          "bias": -0.04242700914782096,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.47589049424430924
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15666648334176655,
+          "rmse": 0.31446311038783664,
+          "bias": 0.00914693773703018,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1398735207542464
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5197714303000365,
+          "rmse": 0.5961508218351553,
+          "bias": -0.006972994575864944,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.48134476243348084
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4702750930485255,
+          "rmse": 0.5221254815438822,
+          "bias": 0.15726926627383694,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4597902746771983
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5277633762063184,
+          "rmse": 0.6072577992759637,
+          "bias": -0.03349243696543689,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4848250664266934
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15763294696675909,
+          "rmse": 0.31461049861967516,
+          "bias": 0.013566022097682219,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14429260511489844
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5212011410328546,
+          "rmse": 0.5962381060500269,
+          "bias": 0.008077219735187918,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.49639497674453376
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.475626787592774,
+          "rmse": 0.5265290753162514,
+          "bias": 0.17150151578681003,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4740225241901714
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5285598222531662,
+          "rmse": 0.6067431858036115,
+          "bias": -0.018310149640854187,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.500007353751276
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 450.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15924908288351017,
+          "rmse": 0.31536424871048047,
+          "bias": 0.021194235686051274,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.15192081870326749
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5235078274954309,
+          "rmse": 0.5974102070793949,
+          "bias": 0.034104194246154795,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.5224219512555006
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4848345291293369,
+          "rmse": 0.5351964990280459,
+          "bias": 0.19617427481977096,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4986952832231323
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5297522270959264,
+          "rmse": 0.6068578079464565,
+          "bias": 0.007935483814322606,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.5262529872064529
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15652735784322,
+          "rmse": 0.3143973831395665,
+          "bias": 0.005757472235817622,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13648405525303384
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5212386131352814,
+          "rmse": 0.596213581722665,
+          "bias": -0.018347511475155585,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.46997024553419026
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4684173214081307,
+          "rmse": 0.5180518844241494,
+          "bias": 0.1515783524746621,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4540993608780234
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5297674241468567,
+          "rmse": 0.607892360350655,
+          "bias": -0.04578465911427133,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.47253284427785897
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1568743184613589,
+          "rmse": 0.31437754819786834,
+          "bias": 0.007167567481185672,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1378941504984019
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5217994169552244,
+          "rmse": 0.5961065492006914,
+          "bias": -0.013595441735753394,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.47472231527359243
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.47010813582652505,
+          "rmse": 0.519275754174451,
+          "bias": 0.1559029107245429,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.45842391912790426
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5301457703532096,
+          "rmse": 0.6076017692334407,
+          "bias": -0.04096356106109296,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4773539423310373
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15746242482928727,
+          "rmse": 0.31439956478032843,
+          "bias": 0.009762774210243325,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14048935722745956
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5226918290817861,
+          "rmse": 0.5960270075531331,
+          "bias": -0.00478646557255102,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4835312914367948
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4732282717885622,
+          "rmse": 0.5217612687579348,
+          "bias": 0.1641050571805169,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4666260655838782
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5306784821589823,
+          "rmse": 0.6071671772221593,
+          "bias": -0.03205660289631639,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.48626090049581383
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15842149213104367,
+          "rmse": 0.3146003473310002,
+          "bias": 0.014180951204156446,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14490753422137267
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5240935181384915,
+          "rmse": 0.5962240825423598,
+          "bias": 0.010261914101847992,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4985796711111938
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.47855022016174376,
+          "rmse": 0.5264118496452789,
+          "bias": 0.17826394575124432,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4807849541546057
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5314471849759853,
+          "rmse": 0.6067436038894618,
+          "bias": -0.01686460118482523,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.501452902207305
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 900.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.16003756499777735,
+          "rmse": 0.31542318512940837,
+          "bias": 0.021820706628237527,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.15254728964545375
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5263975044592261,
+          "rmse": 0.5975378751245438,
+          "bias": 0.03633275327311397,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.5246505102824597
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4877646280960396,
+          "rmse": 0.5354594051766569,
+          "bias": 0.20293704730039225,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.5054580557037536
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5326353773048423,
+          "rmse": 0.606966340722893,
+          "bias": 0.009431924251070393,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.5277494276432007
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15731570219707494,
+          "rmse": 0.3146491908819125,
+          "bias": 0.006411414197124745,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.13713799721434097
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5241953009911492,
+          "rmse": 0.5967482248167064,
+          "bias": -0.015936539267816217,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4723812177415296
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4713749009679911,
+          "rmse": 0.5184136279313556,
+          "bias": 0.15811243979050035,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4606334481938617
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5327239680233824,
+          "rmse": 0.6084516214452114,
+          "bias": -0.044039427338290665,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.47427807605383965
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.1,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15764713016185314,
+          "rmse": 0.3146573206631535,
+          "bias": 0.007799430148086401,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1385260131653026
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5246996824601555,
+          "rmse": 0.5966997212087141,
+          "bias": -0.01126686786934991,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4770508891399959
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4729928797370484,
+          "rmse": 0.5197037128207204,
+          "bias": 0.16228574164384577,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4648067500472071
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5330485420585948,
+          "rmse": 0.6082186271117022,
+          "bias": -0.0392896094325389,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.47902789395959133
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.25,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15822276688343725,
+          "rmse": 0.31471413037928464,
+          "bias": 0.01038214568736124,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14110872870457747
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5255458867497114,
+          "rmse": 0.5966926251990111,
+          "bias": -0.0025039959394840237,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.48581376106986174
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4760590806466418,
+          "rmse": 0.5223099707642991,
+          "bias": 0.17037209448998145,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4728931028933428
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5335362937052952,
+          "rmse": 0.6078499502344746,
+          "bias": -0.03041750307802729,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.48790000031410297
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 0.5,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15917347644837815,
+          "rmse": 0.31496057174889724,
+          "bias": 0.014796477741749631,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14552306075896584
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.52691587974538,
+          "rmse": 0.5969845970576785,
+          "bias": 0.012530906271320438,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.5008486632806662
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.48134753679351927,
+          "rmse": 0.5271551015029604,
+          "bias": 0.18445579633077885,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4869768047341402
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5342735904798053,
+          "rmse": 0.6075074794324511,
+          "bias": -0.015229014918741368,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.5030884884733888
+        }
+      }
+    },
+    {
+      "decay_halflife_gws": 12.0,
+      "player_prior_minutes": 1800.0,
+      "dispersion": 1.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1607877002693437,
+          "rmse": 0.31584985580768477,
+          "bias": 0.022442656920906672,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1531692399381229
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5292117754688556,
+          "rmse": 0.59843645177798,
+          "bias": 0.03862688432452213,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.526944641333868
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4905569463963513,
+          "rmse": 0.5365198907094388,
+          "bias": 0.20911258113037856,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.5116335895337399
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5354531929174688,
+          "rmse": 0.6078427257809716,
+          "bias": 0.011099343049221024,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.5294168464413513
+        }
+      }
+    }
+  ],
+  "context_ablations": [
+    {
+      "context_mode": "none",
+      "context_prior_minutes": 450.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15746242482928727,
+          "rmse": 0.31439956478032843,
+          "bias": 0.009762774210243325,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14048935722745956
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5226918290817861,
+          "rmse": 0.5960270075531331,
+          "bias": -0.00478646557255102,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4835312914367948
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4732282717885622,
+          "rmse": 0.5217612687579348,
+          "bias": 0.1641050571805169,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4666260655838782
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5306784821589823,
+          "rmse": 0.6071671772221593,
+          "bias": -0.03205660289631639,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.48626090049581383
+        }
+      }
+    },
+    {
+      "context_mode": "none",
+      "context_prior_minutes": 900.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15746242482928727,
+          "rmse": 0.31439956478032843,
+          "bias": 0.009762774210243325,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14048935722745956
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5226918290817861,
+          "rmse": 0.5960270075531331,
+          "bias": -0.00478646557255102,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4835312914367948
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4732282717885622,
+          "rmse": 0.5217612687579348,
+          "bias": 0.1641050571805169,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4666260655838782
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5306784821589823,
+          "rmse": 0.6071671772221593,
+          "bias": -0.03205660289631639,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.48626090049581383
+        }
+      }
+    },
+    {
+      "context_mode": "none",
+      "context_prior_minutes": 1800.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15746242482928727,
+          "rmse": 0.31439956478032843,
+          "bias": 0.009762774210243325,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14048935722745956
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5226918290817861,
+          "rmse": 0.5960270075531331,
+          "bias": -0.00478646557255102,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4835312914367948
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4732282717885622,
+          "rmse": 0.5217612687579348,
+          "bias": 0.1641050571805169,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4666260655838782
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5306784821589823,
+          "rmse": 0.6071671772221593,
+          "bias": -0.03205660289631639,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.48626090049581383
+        }
+      }
+    },
+    {
+      "context_mode": "opponent",
+      "context_prior_minutes": 450.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15574029411636411,
+          "rmse": 0.314196313477916,
+          "bias": 0.011066818958280215,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14179340197549645
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5149871705731434,
+          "rmse": 0.5950931442613676,
+          "bias": -6.938429229021226e-05,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4882483727170556
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4738838069871768,
+          "rmse": 0.5305800660201405,
+          "bias": 0.17929015130651207,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.48181115970987337
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5216239416270511,
+          "rmse": 0.6048649201932395,
+          "bias": -0.029029743500237935,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4892877598918923
+        }
+      }
+    },
+    {
+      "context_mode": "opponent",
+      "context_prior_minutes": 900.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15618044371550172,
+          "rmse": 0.3137382944492432,
+          "bias": 0.011008570079468415,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14173515309668464
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5168193923323264,
+          "rmse": 0.5942630536693061,
+          "bias": -0.00030932166769701903,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4880084353416488
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4742375396050521,
+          "rmse": 0.5276061712142294,
+          "bias": 0.17768147772721188,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.48020248613057326
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5236948882272323,
+          "rmse": 0.6043368339296978,
+          "bias": -0.029048677336617184,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4892688260555131
+        }
+      }
+    },
+    {
+      "context_mode": "opponent",
+      "context_prior_minutes": 1800.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1566116154477863,
+          "rmse": 0.3135511360973274,
+          "bias": 0.010766769161285867,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1414933521785021
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5187064202012673,
+          "rmse": 0.5940003406926667,
+          "bias": -0.0011922262718069092,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.48712553073753884
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4741280158569579,
+          "rmse": 0.5251208989265552,
+          "bias": 0.17430976952108174,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.47683077792444306
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5259042901021802,
+          "rmse": 0.6043863629434684,
+          "bias": -0.029529726270930038,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4887877771212002
+        }
+      }
+    },
+    {
+      "context_mode": "team",
+      "context_prior_minutes": 450.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15482498042835105,
+          "rmse": 0.3171917171800828,
+          "bias": 0.00969112514321444,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14041770816043067
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5132124898577933,
+          "rmse": 0.6017829736715317,
+          "bias": -0.0034699131689442195,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4848478438404015
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4609897951747715,
+          "rmse": 0.523876084245074,
+          "bias": 0.1450220619959993,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.44754307039936064
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.521644648158037,
+          "rmse": 0.6134351745191108,
+          "bias": -0.027446229376038217,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.49087127401609204
+        }
+      }
+    },
+    {
+      "context_mode": "team",
+      "context_prior_minutes": 900.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15533909974428234,
+          "rmse": 0.31608936470193805,
+          "bias": 0.009598755951206739,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14032533896842297
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5150450089289283,
+          "rmse": 0.5995119490384778,
+          "bias": -0.004183934244145972,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.48413382276519984
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46390635831630717,
+          "rmse": 0.5222483692200914,
+          "bias": 0.14996062546423014,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.45248163386759144
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.523302131619433,
+          "rmse": 0.6110719924264446,
+          "bias": -0.029072947277113077,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.48924455611501716
+        }
+      }
+    },
+    {
+      "context_mode": "team",
+      "context_prior_minutes": 1800.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1559631726529392,
+          "rmse": 0.3152012460134093,
+          "bias": 0.009566892598431773,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.140293475615648
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5172960535530361,
+          "rmse": 0.5976817837551675,
+          "bias": -0.004684475252504039,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4836332817568417
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4668594650550514,
+          "rmse": 0.5213365421530944,
+          "bias": 0.15461805955591562,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.45713906795927695
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5254398175031856,
+          "rmse": 0.6091122903182364,
+          "bias": -0.030406322799589436,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4879111805925408
+        }
+      }
+    },
+    {
+      "context_mode": "opponent_team",
+      "context_prior_minutes": 450.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1535252524555277,
+          "rmse": 0.3173913874235505,
+          "bias": 0.01104266530101255,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14176924831822876
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5072470700379996,
+          "rmse": 0.6017814169571633,
+          "bias": 0.0014446287406161367,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4897623857499619
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4627624502999966,
+          "rmse": 0.5338421774763268,
+          "bias": 0.16010595738322939,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4626269657865907
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.514429796969916,
+          "rmse": 0.6120445073260073,
+          "bias": -0.02417368619625086,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4941438171958794
+        }
+      }
+    },
+    {
+      "context_mode": "opponent_team",
+      "context_prior_minutes": 900.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15421286811483928,
+          "rmse": 0.3156381434575997,
+          "bias": 0.010863364751925987,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14158994776914222
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5098308070371759,
+          "rmse": 0.5982397745238724,
+          "bias": 0.0003802610264789914,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4886980180358248
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4654624252350726,
+          "rmse": 0.5286659768984627,
+          "bias": 0.1634321631649701,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4659531715683315
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5169947655642455,
+          "rmse": 0.6087283612546472,
+          "bias": -0.025946979617320797,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4923705237748095
+        }
+      }
+    },
+    {
+      "context_mode": "opponent_team",
+      "context_prior_minutes": 1800.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15514746250525158,
+          "rmse": 0.3144370563389639,
+          "bias": 0.010575777680609987,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.1413023606978262
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5134700748782227,
+          "rmse": 0.5958554226775403,
+          "bias": -0.0010619998503621432,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.48725575715898367
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.4679805764052761,
+          "rmse": 0.5249291776466747,
+          "bias": 0.16476026117991896,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.46728126958328026
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5208150549573008,
+          "rmse": 0.6065303461258955,
+          "bias": -0.027836557601520148,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.49048094579061013
+        }
+      }
+    },
+    {
+      "context_mode": "opponent_team_venue",
+      "context_prior_minutes": 450.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15296635676864984,
+          "rmse": 0.3168037944771671,
+          "bias": 0.011025721971915264,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14175230498913147
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.50510059558914,
+          "rmse": 0.6004736021289634,
+          "bias": 0.00141383490840072,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.4897315919177465
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.45878832016402615,
+          "rmse": 0.5323071589480952,
+          "bias": 0.16086376981489034,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.4633847782182517
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5125784256781339,
+          "rmse": 0.6107671596110884,
+          "bias": -0.024331812654519586,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.49398569073761067
+        }
+      }
+    },
+    {
+      "context_mode": "opponent_team_venue",
+      "context_prior_minutes": 900.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.15358607580726785,
+          "rmse": 0.3150469869290447,
+          "bias": 0.010860543608396315,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14158712662561254
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5074129702730298,
+          "rmse": 0.5969264386684604,
+          "bias": 0.0004014715264802673,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.48871922853582606
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46155745087463823,
+          "rmse": 0.5270549267438872,
+          "bias": 0.1643254349677514,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.46684644337111275
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5148170500673427,
+          "rmse": 0.607455135555718,
+          "bias": -0.02606657684463407,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.4922509265474962
+        }
+      }
+    },
+    {
+      "context_mode": "opponent_team_venue",
+      "context_prior_minutes": 1800.0,
+      "metrics": {
+        "all": {
+          "n": 3427,
+          "mae": 0.1544356476119687,
+          "rmse": 0.31384796771307283,
+          "bias": 0.01058582218154509,
+          "actual_mean": 0.13072658301721624,
+          "predicted_mean": 0.14131240519876132
+        },
+        "contenders": {
+          "n": 856,
+          "mae": 0.5107095862743951,
+          "rmse": 0.5945513931007315,
+          "bias": -0.0009949459585875532,
+          "actual_mean": 0.4883177570093458,
+          "predicted_mean": 0.48732281105075825
+        },
+        "early_contenders": {
+          "n": 119,
+          "mae": 0.46428469130177075,
+          "rmse": 0.523219612978278,
+          "bias": 0.16569318623704563,
+          "actual_mean": 0.3025210084033613,
+          "predicted_mean": 0.468214194640407
+        },
+        "later_contenders": {
+          "n": 737,
+          "mae": 0.5182056005237061,
+          "rmse": 0.6052812689209529,
+          "bias": -0.027909311944042572,
+          "actual_mean": 0.5183175033921302,
+          "predicted_mean": 0.49040819144808767
+        }
+      }
+    }
+  ],
+  "known_limits": [
+    "historical bookmaker probabilities are unavailable and were not replaced with results",
+    "save volume is modeled from keeper/team/opponent history, not shots on target",
+    "minutes probabilities inherit uncertainty from the separate minutes model",
+    "penalty-save points are a separate rare event and remain unmodeled"
+  ]
+}

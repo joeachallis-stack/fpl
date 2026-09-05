@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import train_minutes
+import counts
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -83,26 +84,6 @@ def load_action_rows() -> list[dict]:
         parsed["hit"] = parsed["actions"] >= THRESHOLDS[position]
         rows.append(parsed)
     return rows
-
-
-def probability_tail(mean: float, dispersion: float, threshold: int) -> float:
-    if mean <= 0:
-        return 0.0
-    if dispersion <= 0:
-        term = math.exp(-mean)
-        cumulative = term
-        for count in range(1, threshold):
-            term *= mean / count
-            cumulative += term
-        return min(max(1 - cumulative, 0.0), 1.0)
-    size = 1.0 / dispersion
-    probability = size / (size + mean)
-    term = probability**size
-    cumulative = term
-    for count in range(1, threshold):
-        term *= (count - 1 + size) / count * (1 - probability)
-        cumulative += term
-    return min(max(1 - cumulative, 0.0), 1.0)
 
 
 def weighted_position_rates(rows: list[dict], gw: int, halflife: float) -> dict[str, float]:
@@ -218,7 +199,9 @@ def predict_probability(
     for state, state_weight in states.items():
         state_minutes = conditional[state]
         mean = rate * state_minutes / 90 * factor
-        hit = 0.0 if state == "unused" else probability_tail(mean, dispersion, threshold)
+        hit = 0.0 if state == "unused" else counts.probability_at_least(
+            mean, dispersion, threshold
+        )
         state_probabilities[state] = hit
         probability += state_weight * hit
     probability = min(max(probability, PROBABILITY_FLOOR), 1 - PROBABILITY_FLOOR)

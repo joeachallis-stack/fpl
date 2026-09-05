@@ -117,6 +117,9 @@ scripts/
                         small tracked parameter artifact under models/
   train_defcon.py     — walk-forward fit and ablations for DefCon threshold probability
   defcon.py           — runtime role-state/action-count DefCon model used by projections
+  train_saves.py      — walk-forward fit and ablations for goalkeeper save-point expectation
+  saves.py            — runtime save-count distribution used by projections
+  counts.py           — shared Poisson/negative-binomial threshold helpers
   odds.py             — fetch near-term EPL odds; remove bookmaker margin and aggregate
                         fair 1X2 and over/under 2.5 probabilities across UK bookmakers
   observations.py     — append finalized player-fixture facts once, revisioning any
@@ -157,6 +160,7 @@ decisions/
 models/
   minutes_params.json — fitted parameters, source hashes, calibration and peer priors
   defcon_params.json  — fitted DefCon count model, ablations and calibration diagnostics
+  save_params.json    — fitted goalkeeper save model and walk-forward comparisons
 news/
   findings/gwNN_*.jsonl — structured claims extracted from transcripts, one file per
                         extraction batch. Git-tracked: reading a transcript is the
@@ -180,6 +184,7 @@ docs/
 pip install -r requirements.txt
 python scripts/train_minutes.py --fetch  # one-time historical cache + reproducible refit
 python scripts/train_defcon.py            # fit DefCon after minutes (same historical cache)
+python scripts/train_saves.py             # fit goalkeeper save points after minutes
 python scripts/fetch_data.py
 python scripts/show_team.py
 ```

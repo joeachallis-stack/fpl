@@ -7,6 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import train_defcon
+import minutes
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = ROOT / "models" / "defcon_params.json"
@@ -72,34 +73,6 @@ def load_context(bootstrap: dict, season: str) -> dict | None:
     }
 
 
-def minutes_scenarios(minutes_record: dict) -> tuple[dict, dict, str]:
-    """Return an override-consistent state distribution for DefCon exposure."""
-    source = minutes_record["source"]
-    if source in {"override_out", "insufficient_evidence"}:
-        return ({"unused": 1.0}, {"unused": 0.0}, source)
-    if source == "override_doubtful":
-        chance = (minutes_record.get("chance_of_playing_next_round") or 0) / 100
-        return (
-            {"unused": 1 - chance, "cameo_30_59": chance},
-            {"unused": 0.0, "cameo_30_59": 30.0},
-            "doubtful: chance of playing x 30-minute cameo",
-        )
-    states = minutes_record.get("role_states")
-    conditional = minutes_record.get("conditional_minutes_by_state")
-    if states and conditional:
-        return states, conditional, "minutes role-state distribution"
-
-    # This path is only for the legacy minutes fallback. It preserves its expected
-    # minutes without pretending to know a richer role shape.
-    expected = minutes_record["exp_minutes"]
-    probability = min(max(expected / 90, 0.0), 1.0)
-    return (
-        {"unused": 1 - probability, "starter_90_plus": probability},
-        {"unused": 0.0, "starter_90_plus": 90.0},
-        "legacy two-state approximation",
-    )
-
-
 def predict(
     player: dict,
     position: str,
@@ -114,7 +87,7 @@ def predict(
         return {"probability": 0.0, "source": "ineligible_goalkeeper"}
     if context is None:
         return {"probability": None, "source": "model_unavailable"}
-    states, conditional, minutes_source = minutes_scenarios(minutes_record)
+    states, conditional, minutes_source = minutes.projection_scenarios(minutes_record)
     if states == {"unused": 1.0}:
         return {
             "probability": 0.0,

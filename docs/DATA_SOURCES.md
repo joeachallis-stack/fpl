@@ -336,6 +336,30 @@ each live projection records the raw/effective player evidence and state-level h
 Only one completed season contains the action fields, so season-to-season transport is not
 yet measured and current-season finalized observations are appended as they accumulate.
 
+### Goalkeeper save-point training — built 2026-09-05
+
+FPL awards one point at 3, 6, 9, ... goalkeeper saves. The earlier projection divided
+expected saves by three, which gives fractional credit below the first threshold and was
+measurably optimistic. `scripts/train_saves.py` instead models the save-count distribution
+inside every minutes state and evaluates `E[floor(saves / 3)]` with the tail-sum identity.
+It uses code-matched 2024/25 rows as prehistory and predicts 2025/26 forward using only
+older matches.
+
+On 856 contender keeper forecasts, the selected model improved save-point RMSE from
+0.64510 to 0.59400 and MAE from 0.54219 to 0.51871. More importantly, the linear model's
+mean forecast was 0.721 points against an actual 0.488 (+0.233 bias); the count model
+forecast 0.487 (-0.001 bias). Selection chose a 12-GW half-life, 900-minute peer prior and
+negative-binomial dispersion 0.25. Opponent attacking tendency narrowly improved RMSE
+from 0.59603 to 0.59400; defending-team and venue factors worsened it and were rejected.
+
+The richer role-state mixture beat a single expected-minutes input on RMSE (0.59400 vs
+0.59859), although the shortcut had slightly lower MAE (0.50807 vs 0.51871). RMSE is the
+selection metric because squared error is proper for the conditional expectation that xP
+needs; both results remain in `models/save_params.json`. Historical bookmaker odds were
+not available and actual scores were not used as a proxy. Runtime output freezes expected
+saves, 3+/6+/9+/12+ probabilities, player evidence by season and the opponent factor.
+Penalty-save points remain explicitly separate and unmodeled.
+
 ### Expected-points and evaluation infrastructure — built 2026-09-04
 
 `scripts/observations.py` appends finalized, data-checked player-fixture rows to
@@ -358,7 +382,8 @@ component sum instead of returning an unexplained score:
   positional rate. These are explicit starting assumptions to recalibrate, not fitted
   truth; every raw season total, weight and resulting rate is frozen in the archive;
 - clean-sheet and goals-conceded expectation from the inferred opponent goal rate;
-- yellow, red and save components use the same auditable prior-season blend. DefCon uses
+- yellow and red components use the same auditable prior-season blend. Goalkeeper saves
+  use the separate count/threshold model above. DefCon uses
   the separate role-state threshold model above, backed by prior-season match rows rather
   than the official season aggregate. Prior-season bonus is deliberately excluded because
   the 2026/27 BPS changes make it directionally non-comparable; each player's sample size

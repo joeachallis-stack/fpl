@@ -81,6 +81,33 @@ NEVER_PLAYED_FACTOR = 0.5
 OUT_STATUSES = {"i", "s", "u"}  # injured, suspended, unavailable — hard zero
 
 
+def projection_scenarios(record: dict) -> tuple[dict, dict, str]:
+    """Return override-consistent minute states for nonlinear scoring components."""
+    source = record["source"]
+    if source in {"override_out", "insufficient_evidence"}:
+        return ({"unused": 1.0}, {"unused": 0.0}, source)
+    if source == "override_doubtful":
+        chance = (record.get("chance_of_playing_next_round") or 0) / 100
+        return (
+            {"unused": 1 - chance, "cameo_30_59": chance},
+            {"unused": 0.0, "cameo_30_59": 30.0},
+            "doubtful: chance of playing x 30-minute cameo",
+        )
+    states = record.get("role_states")
+    conditional = record.get("conditional_minutes_by_state")
+    if states and conditional:
+        return states, conditional, "minutes role-state distribution"
+
+    # Legacy fallback: preserve expected minutes without claiming a richer role shape.
+    expected = record["exp_minutes"]
+    probability = min(max(expected / 90, 0.0), 1.0)
+    return (
+        {"unused": 1 - probability, "starter_90_plus": probability},
+        {"unused": 0.0, "starter_90_plus": 90.0},
+        "legacy two-state approximation",
+    )
+
+
 def load(name: str) -> dict:
     with open(DATA_DIR / name) as f:
         return json.load(f)
