@@ -5,6 +5,7 @@ Usage:
     python scripts/fetch_data.py --gw 3        # also fetch picks for a specific gameweek
     python scripts/fetch_data.py --skip-slow   # bootstrap/fixtures/entry only
     python scripts/fetch_data.py --refresh-summaries   # re-pull every player summary
+    python scripts/fetch_data.py --refresh-odds        # ignore the two-hour odds cache
 """
 from __future__ import annotations
 
@@ -17,6 +18,8 @@ from pathlib import Path
 import requests
 
 import fetch_news
+import odds
+import observations
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
@@ -173,6 +176,11 @@ def main() -> None:
         action="store_true",
         help=f"Re-pull every player summary, ignoring the {SUMMARY_MAX_AGE_H}h freshness check",
     )
+    parser.add_argument(
+        "--refresh-odds",
+        action="store_true",
+        help="ignore the two-hour bookmaker-odds cache",
+    )
     args = parser.parse_args()
 
     config = load_config()
@@ -181,8 +189,16 @@ def main() -> None:
     bootstrap = fetch(f"{BASE}/bootstrap-static/")
     save("bootstrap.json", bootstrap)
     save_snapshot(bootstrap)
-    save("fixtures.json", fetch(f"{BASE}/fixtures/"))
+    fixtures = fetch(f"{BASE}/fixtures/")
+    save("fixtures.json", fixtures)
     save("event_status.json", fetch(f"{BASE}/event-status/"))
+
+    # Optional near-term bookmaker probabilities. A missing key or source failure must
+    # never block the official FPL refresh that the rest of the project depends on.
+    try:
+        odds.run(bootstrap, fixtures, refresh=args.refresh_odds)
+    except Exception as exc:  # noqa: BLE001 - optional third-party source
+        print(f"odds: refresh failed ({exc}) — keeping any existing cache")
 
     # Free-text FPL news (RSS headlines, not official API data). Tied to this same
     # run rather than its own schedule — see fetch_news.py's docstring for why.
@@ -211,6 +227,7 @@ def main() -> None:
     # model trains on it. See fetch_element_summaries for why it isn't a watchlist.
     owned = [pick["element"] for pick in picks["picks"]] if picks else []
     fetch_element_summaries(bootstrap, owned, refresh=args.refresh_summaries)
+    observations.append_finalized()
 
     # Standings for the small leagues — rivals worth knowing about, not sponsor leagues.
     for league in entry.get("leagues", {}).get("classic", []):

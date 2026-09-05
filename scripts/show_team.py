@@ -6,11 +6,40 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
+PRICE_WATCH_LIKELIHOOD = 4
 
 
 def load(name: str) -> dict:
     with open(DATA_DIR / name) as f:
         return json.load(f)
+
+
+def price_watch_line(element: dict) -> str | None:
+    """Summarise the earliest strong native FPL price-change projection."""
+    projections = element.get("price_change_projections") or []
+    actionable = [
+        projection
+        for projection in projections
+        if abs(projection.get("likelihood", 0)) >= PRICE_WATCH_LIKELIHOOD
+    ]
+    if not actionable:
+        return None
+
+    projection = min(actionable, key=lambda item: item["offset"])
+    likelihood = projection["likelihood"]
+    direction = "rise" if likelihood > 0 else "fall"
+    timing = "today" if projection["offset"] == 0 else f"+{projection['offset']}d"
+    net_transfers = element.get("transfers_in_event", 0) - element.get(
+        "transfers_out_event", 0
+    )
+    locked_until = element.get("price_change_locked_until")
+    lock_note = f" | locked until {locked_until}" if locked_until else ""
+
+    return (
+        f"  {element['web_name']:20s} £{element['now_cost'] / 10:.1f}m  "
+        f"{direction} {timing}: {float(projection['projected_percent']):+.1f}% "
+        f"(likelihood {likelihood:+d}) | net transfers {net_transfers:+,}{lock_note}"
+    )
 
 
 def main() -> None:
@@ -47,6 +76,15 @@ def main() -> None:
             f"{p['position']:2d} {types[el['element_type']]:3s} {el['web_name']:20s} "
             f"{teams[el['team']]:15s} £{el['now_cost'] / 10:.1f}m{tag}{bench}"
         )
+
+    price_watch = [
+        line
+        for pick in picks["picks"]
+        if (line := price_watch_line(elements[pick["element"]])) is not None
+    ]
+    if price_watch:
+        print(f"\nPrice watch (official FPL projection, |likelihood| >= {PRICE_WATCH_LIKELIHOOD}):")
+        print("\n".join(price_watch))
 
 
 if __name__ == "__main__":

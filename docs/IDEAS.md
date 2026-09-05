@@ -108,6 +108,156 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
    recovering all 5 rate-limited videos afterward. Transcripts are cleaned plain
    text under `news/transcripts/`, referenced by path from `news/entries.jsonl`,
    not inlined. See `docs/DATA_SOURCES.md` for the full writeup.
+7. **Price-change watch**, added 2026-09-04. `show_team.py` now surfaces strong
+   price-movement signals for owned players from FPL's own `bootstrap-static`
+   projections. It shows the earliest projection within two days whose signed
+   likelihood reaches an absolute value of 4, plus net gameweek transfers. This is
+   an official FPL projection, not a third-party model, but the endpoint is
+   undocumented: its formula and likelihood calibration are unknown, so the output
+   deliberately labels it as a projection rather than a guaranteed change.
+8. **Bookmaker-odds ingestion**, added 2026-09-04. `scripts/odds.py` fetches UK
+   `h2h,totals` markets from The Odds API, stores the reproducible raw response, removes
+   each bookmaker's margin independently, takes component medians and renormalizes them,
+   then matches the result to official FPL fixtures using explicit team aliases plus
+   kickoff time. The first run matched all 19 returned events with zero unmatched.
+   `fetch_data.py` calls it as an optional source with a two-hour cache; missing keys or
+   API failures cannot block the official refresh. This is ingestion only — the derived
+   probabilities are not yet wired into player projections or decisions.
+9. **Auditable one-gameweek xP baseline**, added 2026-09-04. `scripts/projections.py`
+   combines the existing minutes distribution with an independent-Poisson match model
+   fitted to de-vigged 1X2 and over/under 2.5 probabilities. It allocates team attacking
+   expectation using official xG/xA rates shrunk by 180 minutes toward position averages,
+   and estimates cards, DefCon, saves and bonus from player history shrunk toward live
+   position priors. Every scoring component, source count, fit error and known limitation
+   remains visible per player. It refuses to rank a partial ten-fixture gameweek. Rare
+   penalty/own-goal events and uncalibrated player props remain explicitly unmodeled.
+   `archive`/`resolve` provide the same non-rewriteable measurement discipline as the
+   minutes ledger; the model reads scoring weights from live `game_config.scoring`.
+10. **Finalized observations, multi-GW forecasts and walk-forward evaluation**, added
+    2026-09-04. `observations/player_fixtures.jsonl` stores actual component data once per
+    finalized player-fixture and revisions official corrections. `projections.py` now
+    emits a configurable horizon (default six): bookmaker fixtures first, then a labeled
+    fallback using odds-calibrated venue/FDR goal buckets adjusted by recent team xG and
+    xG-conceded factors shrunk toward league average. It handles blanks and multiple
+    fixtures per gameweek without overwriting. Pre-deadline calibration weights select
+    owned players plus top horizon-xP and xP/value candidates by position; ownership is
+    display-only. `evaluate.py` separates all-player diagnostics from decision-weighted
+    primary error and reports each forecast lead independently. Archives retain minimal
+    forecasts for everyone but full audit inputs only for fitting-relevant players,
+    reducing the tested weekly archive from ~2.9 MB to ~482 KB.
+11. **Whole-squad decision optimizer**, added 2026-09-05. `scripts/decisions.py` uses a
+    mixed-integer solver to find the hold baseline, top three exact one- and two-transfer
+    squads, and best exact three-, four- and five-transfer squads. It reconstructs each
+    owned player's selling price, enforces live budget/position/club rules, and chooses a
+    legal XI and captain independently in every horizon gameweek. Prices, hits and
+    next-week transfer stock remain explicit. When live chip windows allow it, the same
+    machinery emits one-week Free Hit and horizon Wildcard squads. Planned XI/captain xP
+    is the exact ranking objective; vice takeover and autosub expectations are displayed
+    separately under an explicit independent-appearance assumption, because the current
+    early-season `p_zero` estimates are not calibrated enough to drive squad selection.
+    `decisions.py archive` freezes the full point-in-time search without overwriting, so
+    the journal's chosen action and runner-up can later be audited against the candidates
+    and prices that were actually available.
+
+**Recalibration policy:** evaluate a candidate calibration every settled gameweek over
+the most recent six archived forecast weeks, with results separated by forecast lead.
+Do not automatically replace the active parameters after one week; promote a change only
+after repeated walk-forward improvement on the frozen decision-weighted population.
+All-player error remains diagnostic. New features face the same ablation rule: retain
+them only when adding the feature improves out-of-sample decision-weighted forecasts.
+
+**Projection is not transfer value.** A player's horizon xP and xP/current-price are
+screening statistics, not a claim that buying him is worthwhile. Transfer value is
+pair-specific: it must compare the best legal squad after `player out -> player in`
+with the best hold squad over the same horizon, then account for any points hit and the
+option value of spending rather than banking a free transfer. Feasibility depends on the
+outgoing player's actual selling price, money in the bank, position, the three-per-club
+limit and the rest of the squad. It can also change the optimal XI, bench and captain in
+each gameweek. Until that decision layer exists, do not call the projection ranking or
+the difference between two unpaired players a "net gain" or a transfer recommendation.
+The decision output should show the best legal result at each transfer count from zero
+(hold) through five, rather than presenting only one unconstrained optimum. Each incoming
+player must preserve the outgoing position inventory: GKP for GKP, DEF for DEF, MID for
+MID and FWD for FWD. For combinations, this is enforced on the squad as a whole, so a
+two-player move may replace one midfielder and one forward but may not silently change
+the required 2/5/5/3 positional counts.
+
+Every candidate squad must be scored by its expected FPL points, not by its monetary
+team value and not as the sum of fifteen unconditional player projections. For every
+forecast gameweek, independently choose the legal XI that maximizes projected points
+using the live `element_types[].squad_min_play` and
+`squad_max_play` rules (currently exactly one GKP, 3-5 DEF, 2-5 MID and 1-3 FWD), then
+choose captain, vice-captain and bench order. Thus a player's contribution may change
+across the horizon as fixtures change, and an expensive incoming player receives no
+artificial credit for weeks when the best estimated decision is to bench him. Captaincy
+is part of the projected points total, not an after-the-fact annotation. Use `p_zero` and
+the real substitution rules to show expected vice/autosub cover separately, stating the
+appearance-independence assumption. Keep that coverage sensitivity out of the primary
+ranking until it is calibrated; otherwise an uncertain early-season `p_zero` can silently
+make bench depth dominate the result.
+
+Keep transfer stock and monetary state separate from raw projected points:
+
+- **Free-transfer stock.** Use one opportunity-cost term only: compare the next-week bank
+  after the proposed moves with the next-week bank after holding, using the live cap, and
+  charge for that difference. Do not also add a reward for retained transfers; that is
+  the same value expressed from the other side of the hold baseline and would double
+  count it. Spending one while already at five has zero stock cost because holding would
+  waste the new accrual; at four or fewer, spending one normally leaves one fewer option
+  next week. A points hit remains a separate, explicit current-gameweek cost for transfers
+  beyond the free allowance.
+- **Prices and money in the bank.** The outgoing player's actual selling price and the
+  incoming player's current purchase price are hard feasibility constraints. Report the
+  resulting cash balance and team value, but do not optimize or add points for either.
+  Monetary value matters only insofar as it enables a concrete present or future move;
+  introduce a cash shadow value only if a later dynamic-transfer model and walk-forward
+  evidence justify one. Price-change projections can inform timing and warn that a move
+  may soon become unaffordable, but projected profit is not the objective.
+
+The intended build remains incremental: prove the hold/one-transfer squad evaluator,
+then reuse exactly the same legality and weekly-lineup valuation for the best two-,
+three-, four- and five-transfer combinations. Chips are a later optimization layer.
+
+**Close-call policy:** default to holding when a proposed move's estimated advantage is
+small relative to the model's measured decision-weighted uncertainty. A positive point
+estimate is still reported, but it is not automatically an actionable edge: selecting
+the maximum from many candidates creates winner's-curse risk, and spending a bankable
+transfer reduces future flexibility. Do not invent a permanent fixed points threshold.
+Derive the robustness margin from frozen, resolved projection errors once enough relevant
+forecasts exist; until then, label marginal leads as uncertain and recommend the hold.
+At the five-transfer cap, using one has no transfer-stock opportunity cost, but the same
+model-uncertainty test still applies.
+
+**Decision-output policy:** normally wait for the latest team news before transferring.
+Move early for a projected price change only when waiting is likely to make an otherwise
+preferred move unaffordable; prospective team-value gain alone is not a reason. Use
+uncertainty to reject marginal actions, while still maximizing expected points among the
+credible alternatives. Show the hold baseline, the top three legal plans using exactly
+one transfer, the top three using exactly two, and the best plan at each of exactly three,
+four and five transfers. Score all of these as moves made at the upcoming deadline and
+then held for the full forecast horizon, with the XI and captain re-optimized weekly.
+Do not invent later transfers inside that horizon; future-transfer planning is a separate
+layer to consider only after the current-deadline optimizer is measured and useful.
+
+**Chip-team output:** when the live chip data says the relevant chip is available and
+inside its active window, also be able to display:
+
+- **Optimal Free Hit squad:** an unlimited-transfer, budget-legal 15-player squad for the
+  upcoming gameweek only, including the optimal legal XI, captain, vice and bench order.
+  The original squad returns afterwards, so do not credit this team with later-horizon
+  points or charge it ordinary transfer hits/stock.
+- **Optimal Wildcard squad:** an unlimited-transfer, budget-legal permanent 15-player
+  squad, scored across the selected horizon with its XI, captain, vice and bench order
+  re-optimized each gameweek. Ordinary transfer hits do not apply and the banked-transfer
+  rules continue to come from live state.
+
+Chip-squad affordability must use the current squad's real selling prices plus money in
+the bank and current purchase prices for incoming players; retained owned players must
+not be treated as if they were sold and rebought at a higher price. Displaying the best
+chip squad is not itself a recommendation to activate the chip. Compare its incremental
+points with the best no-chip action and report the uncalibrated option value of saving the
+chip separately, especially when later blank/double gameweeks are plausible. Call these
+teams "optimal under the current projection model," not known-optimal teams.
 
 ## Next up
 
@@ -257,14 +407,26 @@ shows it mattering.
 
 ### 5. Odds-based fixture difficulty
 
-The real remaining data gap. FDR is a hand-assigned 1-5 integer; win probability and
-over/under 2.5 are actual numbers. Everything downstream — transfer targets, captaincy,
-chip timing — is currently resting on someone's gut estimate of how hard a fixture is.
+**Built 2026-09-04.** Uses The Odds API's `soccer_epl` endpoint with UK `h2h,totals`
+markets. The key is stored only as
+`THE_ODDS_API_KEY` in a gitignored `.env`, never in tracked configuration or logs. A
+live request returned 19 fixtures across roughly two rounds; the production verification
+matched all 19 to FPL fixture IDs and cost 2 of the free plan's 500 monthly credits.
 
-**Open, and worth deciding before writing any code:** most odds APIs have a free tier but
-need a key. Does a key belong in this repo at all? Options: env var and never committed,
-a gitignored `secrets.json`, or skip the API and scrape a public odds page. The answer
-changes the implementation, so decide first.
+The interpretation contract is recorded in `docs/DATA_SOURCES.md`: remove bookmaker
+margin within each bookmaker/market before taking component medians and renormalizing;
+ignore the automatically returned `h2h_lay`; accept only the 2.5 totals line; retain
+timestamps and contributing-bookmaker counts; and describe results as bookmaker-implied
+probabilities. The verified feed is near-term, not six gameweeks deep, so FPL FDR remains
+the fallback outside its coverage. Ingestion is complete; consuming these probabilities
+in the projection model is a separate next step.
+
+**Player props checked, deliberately not added.** Anytime-goalscorer and related markets
+exist, but a live test returned only two bookmakers. The API supplies one `Yes` price per
+player, not a Yes/No pair, and multiple players can score, so normalizing across players
+cannot remove the margin. A 19-fixture refresh would also cost 19 credits for one prop
+market. See `docs/DATA_SOURCES.md`; do not label inverse goalscorer odds as scoring
+probabilities without a separate calibration method.
 
 ### 6. Chip expiry monitor & set-piece watch
 
@@ -320,9 +482,6 @@ itself (the diff and the alert) is still open; there's only one day of history s
   whose fixture count drifts off 10. Currently all 38 have exactly 10.
 - **Bench Boost handling in `check_team.py`.** With a Bench Boost active all 15 play, so
   the bench checks change meaning. Not relevant until a chip is played.
-- **Price-change alerting.** The data is native now (`price_change_projections`), so this
-  is presentation, not modelling — probably just a line in the weekly output rather than
-  its own feature.
 - **Fantasy Football Hub articles — tested and closed, not open.** No RSS (every real
   feed path 404s) and a Next.js SPA even a plain scrape can't reach — real article text
   loads client-side only. Would need a headless browser to fix, a materially bigger

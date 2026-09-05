@@ -21,6 +21,17 @@ Base URL: `https://fantasy.premierleague.com/api/`
 `scripts/fetch_data.py` pulls the ones this project actually uses into `data/` (gitignored,
 refresh on demand — this is live season data, not something to commit).
 
+**Owned-player selling prices require reconstruction.** The public picks response contains
+the squad but no purchase/selling price. `scripts/decisions.py` uses the most recent
+`element_in_cost` from the public transfer log for a transferred-in player; for an
+initial-squad player it uses the first official `element-summary` history value. It then
+applies the live `game_settings.element_sell_at_purchase_price` and
+`transfers_sell_on_fee` parameters against the player's current `now_cost`. The script
+keeps that provenance per player and refuses to optimize if an acquisition price is
+missing, since silently substituting current price could make an unaffordable move look
+legal. Like `check_team.py`, this still describes the last deadline squad: only the
+authenticated `my-team` endpoint could see transfers made since then.
+
 ## What bootstrap-static already carries (checked 2026-09-02)
 
 Don't reach for a third-party source before checking these — several fields that used to
@@ -32,7 +43,12 @@ require FBref or a price-tracking site are now native:
   sanity-check, not a dependency.
 - **Price changes**: `price_change_projections` (percent-to-change at offsets 0/1/2 days
   with a `likelihood` score), `price_change_hourly_rate`, `price_change_locked_until`.
-  This is FPL's own transfer-momentum model — no need to build one off cache deltas.
+  These projections are supplied by FPL itself in the official `bootstrap-static`
+  response — no need to build a model off cache deltas or use a third-party predictor.
+  The API is undocumented, so the formula and the exact calibration of the signed
+  `likelihood` scale (-5 to +5) are unknown; treat it as FPL's projection, not a
+  guaranteed price change. `show_team.py` surfaces owned players whose absolute
+  likelihood reaches 4 within the next two days, alongside net gameweek transfers.
 - **Set pieces**: `penalties_order`, `direct_freekicks_order`,
   `corners_and_indirect_freekicks_order` plus the `_text` variants.
 - **News**: `news`, `news_added`, `status`, `chance_of_playing_this_round`/`_next_round`,
@@ -162,6 +178,130 @@ deduplicated), stored one file per video under `news/transcripts/`, referenced f
 
 ## Third-party (for context the official API genuinely doesn't have: odds, predicted XIs, DGWs)
 
+### Bookmaker odds — source and interpretation verified 2026-09-04
+
+**Chosen source:** [The Odds API](https://the-odds-api.com/), using its
+`soccer_epl` endpoint, UK region, and the `h2h,totals` markets. A live request on
+2026-09-04 returned 19 upcoming fixtures across the next two rounds, with 16-21
+bookmakers per fixture. The request cost 2 credits from the free plan's monthly
+allowance of 500.
+
+**Credential handling:** the key lives only in the gitignored repository `.env` as
+`THE_ODDS_API_KEY`. Never put it in `config.json`, a request log, an exception message,
+or a committed file. Code should fail clearly or skip this optional source when the
+variable is absent; the official FPL refresh must not depend on a third-party secret.
+
+**Raw fields are odds, not probabilities.** Decimal odds include each bookmaker's
+margin. Convert and remove that margin separately for every bookmaker and market:
+
+```
+raw_i = 1 / decimal_odds_i
+fair_i = raw_i / sum(raw outcomes in that bookmaker's market)
+```
+
+For `h2h`, the denominator contains home, draw and away. For `totals`, it contains
+over and under. Aggregate the resulting fair probabilities across bookmakers with the
+component-wise median, then renormalize the median vector to sum to one. Do not average
+raw decimal odds or mix bookmakers before removing their individual margins.
+
+Interpretation rules that must be explicit in code and output:
+
+- use `h2h` for home/draw/away probabilities;
+- ignore the automatically returned `h2h_lay` exchange market;
+- use only `totals` outcomes whose `point` is exactly `2.5` — the live response also
+  contained 3.5-goal lines, which answer a different question;
+- retain `commence_time` and each bookmaker/market `last_update`, so stale data is
+  visible rather than silently treated as current;
+- match to FPL fixtures using normalized team aliases plus kickoff time, never team
+  display name alone;
+- treat bookmaker coverage as near-term only. The verified response covered roughly
+  two rounds, not the six-gameweek optimisation horizon, so FPL FDR remains the
+  fallback for fixtures without odds;
+- describe outputs as bookmaker-implied probabilities, not forecasts or certainties.
+
+The raw response and any derived fixture probabilities belong under gitignored
+`data/`. Preserve enough raw bookmaker data and the fetch timestamp to reproduce every
+derived number. **Built 2026-09-04:** `scripts/odds.py`, called automatically by
+`fetch_data.py`, writes `data/odds_raw.json` and `data/odds.json`. It caches requests for
+two hours to protect the 500-credit monthly allowance; `--refresh-odds` bypasses that
+cache. The first production run matched all 19 returned events to FPL fixture IDs with
+zero unmatched events. H2H coverage was broad (16-21 bookmakers per fixture), while the
+exact 2.5-goal totals line was much thinner (1-5), so downstream output must retain and
+show the contributing-bookmaker counts.
+
+**Player props verified, not ingested (2026-09-04).** The live event-market endpoint
+advertised `player_goal_scorer_anytime`, first/last goalscorer, assists,
+score-or-assist, shots-on-target, card and red-card markets. Real requests for Newcastle
+v Bournemouth established the actual shapes and coverage:
+
+| Market | Live shape | Bookmakers |
+|---|---|---:|
+| `player_goal_scorer_anytime` | `name: Yes`, player in `description`; 38-39 players | 2 |
+| `player_goals_alternate` | `name: Over`, player in `description`, `point: 1.5`; 7 players | 1 |
+| `player_assists` | `name: Over`, player in `description`, `point: 0.5`; 35 players | 1 |
+| `player_to_receive_card` | `name: Yes`, player in `description`; 38-42 players | 2 |
+| `player_to_receive_red_card` | `name: Yes`, player in `description`; 42 players | 1 |
+
+Player identity must come from `description`, then pass through the canonical roster
+resolver; `name` describes the bet outcome, not the footballer.
+
+Do not treat `1 / odds` from this market as a fair scoring probability. Anytime-scorer
+outcomes are not mutually exclusive — several players can score — and the response has
+no paired `No` price for each player, so the bookmaker margin cannot be removed by
+normalizing across the listed players. Coverage is also thin, player names need canonical
+roster resolution, and the endpoint is queried once per event: one market across the
+verified 19-fixture slate would cost 19 credits per refresh rather than 2. Until there is
+a separately specified calibration method and a demonstrated decision use, retain this
+as an available future signal rather than presenting it as probability. Alternate goals
+can partly recover multi-goal upside via the tail-sum identity
+`E[goals] = P(G>=1) + P(G>=2) + ...`, but the verified feed supplied `P(G>=2)` for only
+seven players from one bookmaker. Assists similarly supplies only `P(A>=1)`, not expected
+assist count. Card and red-card markets may overlap (a red can follow a booking), so they
+must not be subtracted independently without a market-definition or historical
+calibration that prevents double counting.
+
+### Expected-points and evaluation infrastructure — built 2026-09-04
+
+`scripts/observations.py` appends finalized, data-checked player-fixture rows to
+`observations/player_fixtures.jsonl`; it is called after element summaries refresh.
+Double gameweeks remain separate fixtures and later official corrections append a
+revision rather than rewriting history. The first run captured 1,236 finalized rows for
+GWs 1-2 and an immediate rerun appended zero duplicates.
+
+`scripts/projections.py` produces a configurable multi-gameweek player xP matrix in
+`data/projections.json` (default six, `--horizon N`) and can freeze a pre-deadline ledger
+under `projections/`. It deliberately exposes the
+component sum instead of returning an unexplained score:
+
+- appearance points from the minutes model's scoring-aligned bands;
+- team goal rates from an independent-Poisson model fitted to the de-vigged 1X2 and
+  over/under 2.5 probabilities, with numerical fit error retained;
+- player goal/assist shares from official per-match xG/xA, shrunk by 180 minutes toward
+  the live position average before allocation to avoid two hot matches dominating;
+- clean-sheet and goals-conceded expectation from the inferred opponent goal rate;
+- yellow, red, DefCon, save and bonus components from current-season match history,
+  shrunk toward live position priors, with each player's sample size retained.
+
+The model reads point weights from `bootstrap.game_config.scoring`, refuses to publish a
+ranking unless all ten next-gameweek fixtures have usable odds, and records bookmaker
+counts plus known limitations on every player. Exact odds supply fixtures where present;
+later fixtures use venue/FDR goal-rate buckets calibrated from the live odds sample,
+adjusted by recent team xG attack/defence factors shrunk five matches toward league
+average. Every horizon row labels its source. It does not yet model penalty saves,
+penalty misses or own goals, and does not ingest player props until those prices can be
+calibrated without mislabeling margined inverse odds as fair probabilities. Bonus is a
+shrunk empirical expectation, not a reconstruction of the interdependent BPS contest;
+the frozen ledger will determine whether that approximation earns its place.
+
+Calibration membership is frozen before the deadline: owned players plus the top ten
+per position by discounted horizon xP and by horizon xP/value, among players projected
+for at least 45 minutes. Ownership percentage is display-only and never enters forecasts,
+candidates or weights. All players retain minimal archived horizon xP for diagnostic
+grading; the calibration-weighted players retain full inputs. This reduced a test archive
+from about 2.9 MB to 482 KB without discarding fitting evidence. `scripts/evaluate.py`
+reports all-player diagnostics separately from the decision-weighted primary error and
+breaks both out by GW+1, GW+2, etc., over a configurable rolling archive window.
+
 - **Fantasy Football Scout** (fantasyfootballscout.co.uk) — FDR ticker, clean sheet /
   projected goals per team, widely used for fixture planning.
 - **Fantasy Football IQ** (fantasyfootballiq.app/data) — free projected points + fixture-ease
@@ -182,9 +322,9 @@ later (e.g. Understat, Opta), note it here before wiring it in.
 
 ## Known gaps (nothing free closes these cleanly)
 
-- **Bookmaker odds** — FDR is a hand-assigned 1-5 integer. Win probability and over/under
-  2.5 are real numbers and a much better basis for fixture difficulty. Needs an API key,
-  so decide whether one belongs in this repo before wiring it up.
+- **Long-horizon bookmaker odds** — the selected odds source provides current upcoming
+  markets, verified at roughly two rounds on 2026-09-04, not the full six-gameweek
+  horizon. FPL FDR remains the fallback beyond available bookmaker coverage.
 - **Predicted XIs / press conferences** — `chance_of_playing_next_round` lags the news by
   a day or more. `scout_news_link` helps; a WebSearch before the deadline still helps more.
 - **Blank and double gameweeks** — not announced in advance; they fall out of cup

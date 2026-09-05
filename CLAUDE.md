@@ -58,7 +58,19 @@ When Joe asks "what should I do this week" / "review my team" / similar:
    the journal one step up, aimed at the model rather than the decision: minutes is the
    highest-leverage input and the one most likely to be quietly wrong, and the measured
    error is what decides whether the LLM/news override layer is worth building at all.
-6c. Run the `gameweek-brief` skill for what the FPL creators are saying — extracted from
+6c. Run `scripts/projections.py` (six-GW horizon by default; `--horizon N` to change),
+   inspect its component breakdown for implausible inputs, then freeze it with
+   `scripts/projections.py archive` before the deadline. Resolve the prior week with
+   `scripts/projections.py resolve --gw N`, and run `scripts/evaluate.py` for rolling,
+   lead-time-specific error. This is a measured baseline, not an oracle: it refuses a
+   partial next gameweek of odds and records sparse-data limits.
+6d. Run `scripts/decisions.py` to compare hold with the top exact 1-5 transfer squads and,
+   when available, the model-optimal Free Hit and Wildcard squads. Prices constrain
+   feasibility but earn no points; vice/autosub cover, transfer stock and uncertainty
+   remain visible rather than being hidden in the ranking. Once the recommendation is
+   ready, freeze the search with `scripts/decisions.py archive`; it will not overwrite an
+   existing gameweek archive.
+6e. Run the `gameweek-brief` skill for what the FPL creators are saying — extracted from
    the YouTube transcripts, name-resolved against the roster, and claim-checked against
    the match record. It reports consensus and dissent per player rather than a wall of
    quotes. Treat it as evidence, not instruction: where a creator and the minutes model
@@ -101,8 +113,21 @@ scripts/
                         minutes. Role buckets in, scoring-aligned bands out (p_zero /
                         p_1_59 / p_60_plus, around the 60-minute appearance cliff).
                         `archive` freezes a GW's predictions, `resolve` scores them
+  odds.py             — fetch near-term EPL odds; remove bookmaker margin and aggregate
+                        fair 1X2 and over/under 2.5 probabilities across UK bookmakers
+  observations.py     — append finalized player-fixture facts once, revisioning any
+                        later official correction instead of silently overwriting it
+  projections.py      — auditable multi-GW expected points by scoring component; combines
+                        minutes, odds, official xG/xA, and shrunk match-history rates
+  evaluate.py         — walk-forward error by forecast lead; all-player diagnostics and
+                        decision-weighted primary metrics remain separate
+  decisions.py        — legal whole-squad optimizer: hold, exact 1-5 transfer plans,
+                        weekly XI/captain/bench, and available Free Hit/Wildcard squads
   show_team.py        — print current squad + summary from cached data
 data/                 — gitignored cache of fetched API responses
+  decisions.json      — full auditable output from the latest whole-squad optimization
+  odds_raw.json       — reproducible The Odds API response plus fetch/quota metadata
+  odds.json           — derived probabilities matched to official FPL fixture IDs
   element_summary/    — per-player fixture history + remaining fixtures (owned players)
   standings_{id}.json — mini-league standings (leagues under 500 entries only)
   snapshots/           — one dated bootstrap.json per day; the only backfill for set-piece
@@ -116,6 +141,15 @@ minutes/
                         data/minutes.json is overwritten every run, so an unrecorded
                         prediction is gone. Storing the inputs is what lets the model's
                         hardcoded constants be replaced by measurements later.
+observations/
+  player_fixtures.jsonl — immutable finalized facts, one row per player-fixture; doubles
+                          aggregate naturally and corrections append a revision
+projections/
+  gwNN.json           — frozen pre-deadline horizon forecasts and inputs, later resolved
+                        with actual points to measure projection error
+decisions/
+  gwNN.json           — frozen hold/transfer/chip search, including point-in-time prices,
+                        legal weekly lineups and the alternatives shown to Joe
 news/
   findings/gwNN_*.jsonl — structured claims extracted from transcripts, one file per
                         extraction batch. Git-tracked: reading a transcript is the
