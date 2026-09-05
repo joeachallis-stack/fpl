@@ -41,7 +41,7 @@ DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "minutes.json"
 ARCHIVE_DIR = ROOT / "minutes"
 
-MODEL_VERSION = "hierarchical-v1"
+MODEL_VERSION = "hierarchical-v2"
 TRAINED_MODEL = ROOT / "models" / "minutes_params.json"
 
 # Fewest gameweeks that counts as real evidence. Two is deliberate: this season is all
@@ -205,7 +205,13 @@ def trained_prediction(
     )
     peer_weight = params["peer_prior_weight"]
     band_counts = {key: peer_weight * peer["bands"][key] for key in peer["bands"]}
-    role_counts = {key: peer_weight * peer["roles"][key] for key in peer["roles"]}
+    state_counts = {
+        key: peer_weight * peer["role_states"][key] for key in train_minutes.ROLE_STATES
+    }
+    state_minutes = {
+        key: state_counts[key] * peer["conditional_minutes_by_state"][key]
+        for key in train_minutes.ROLE_STATES
+    }
     minute_total = peer_weight * peer["exp_minutes"]
     current_weight = prior_weight = 0.0
     prior_rows = prior_by_code.get(player["code"], [])
@@ -223,23 +229,59 @@ def trained_prediction(
         if observed_team != team_name:
             weight *= params["club_change_retention"]
         band_counts[band(row["minutes"])] += weight
-        role_counts[role_bucket(row)] += weight
+        state = train_minutes.role(row)
+        state_counts[state] += weight
+        state_minutes[state] += weight * row["minutes"]
         minute_total += weight * row["minutes"]
         if is_prior:
             prior_weight += weight
         else:
             current_weight += weight
     total_weight = peer_weight + current_weight + prior_weight
+    states = train_minutes.normalize(
+        state_counts, train_minutes.ROLE_STATES, params["state_probability_floor"]
+    )
+    conditional = {
+        key: (
+            state_minutes[key] / state_counts[key]
+            if state_counts[key] else train_minutes.STATE_DEFAULT_MINUTES[key]
+        )
+        for key in train_minutes.ROLE_STATES
+    }
+    state_bands = {
+        "p_zero": states["unused"],
+        "p_1_59": states["cameo_1_29"] + states["cameo_30_59"] + states["starter_1_59"],
+        "p_60_plus": states["cameo_60_plus"] + states["starter_60_74"]
+        + states["starter_75_89"] + states["starter_90_plus"],
+    }
     bands = train_minutes.normalize(
-        band_counts, train_minutes.BANDS, params["probability_floor"]
+        state_bands if params["state_driven_outputs"] else band_counts,
+        train_minutes.BANDS,
+        params["probability_floor"],
     )
-    roles = train_minutes.normalize(
-        role_counts, train_minutes.ROLES, params["probability_floor"]
+    exp_minutes = (
+        sum(states[key] * conditional[key] for key in train_minutes.ROLE_STATES)
+        if params["state_driven_outputs"] else minute_total / total_weight
     )
+    start_states = [key for key in train_minutes.ROLE_STATES if key.startswith("starter_")]
+    cameo_states = [key for key in train_minutes.ROLE_STATES if key.startswith("cameo_")]
+    p_start = sum(states[key] for key in start_states)
+    p_cameo = sum(states[key] for key in cameo_states)
     return {
         "bands": bands,
-        "roles": roles,
-        "exp_minutes": minute_total / total_weight,
+        "role_states": states,
+        "conditional_minutes_by_state": conditional,
+        "p_start": p_start,
+        "p_cameo": p_cameo,
+        "exp_minutes_given_start": (
+            sum(states[key] * conditional[key] for key in start_states) / p_start
+            if p_start else 0.0
+        ),
+        "exp_minutes_given_cameo": (
+            sum(states[key] * conditional[key] for key in cameo_states) / p_cameo
+            if p_cameo else 0.0
+        ),
+        "exp_minutes": exp_minutes,
         "prior_n_obs": len(prior_rows),
         "audit": {
             "training_model_version": model["model_version"],
@@ -270,7 +312,6 @@ def predict(
 
     roles, emp_bands, emp_mins, eff_n = weighted(history, current_gw)
     if trained:
-        roles = trained["roles"]
         emp_bands = trained["bands"]
         emp_mins = trained["exp_minutes"]
         eff_n = (
@@ -285,6 +326,22 @@ def predict(
         "element_type": player["element_type"],
         "gw": current_gw,
         "role_buckets": {k: round(v, 4) for k, v in roles.items()},
+        "role_states": (
+            {k: round(v, 4) for k, v in trained["role_states"].items()}
+            if trained else None
+        ),
+        "conditional_minutes_by_state": (
+            {k: round(v, 1) for k, v in trained["conditional_minutes_by_state"].items()}
+            if trained else None
+        ),
+        "p_start": round(trained["p_start"], 4) if trained else None,
+        "p_cameo": round(trained["p_cameo"], 4) if trained else None,
+        "exp_minutes_given_start": (
+            round(trained["exp_minutes_given_start"], 1) if trained else None
+        ),
+        "exp_minutes_given_cameo": (
+            round(trained["exp_minutes_given_cameo"], 1) if trained else None
+        ),
         "n_obs": len(history),
         "effective_n": round(eff_n, 3),
         "status": status,
@@ -503,11 +560,12 @@ def build(show: int = 0) -> dict:
 
     if show:
         ranked = sorted(records.values(), key=lambda r: -r["exp_minutes"])[:show]
-        print(f"\n{'player':<16}{'mins':>6}{'p(0)':>7}{'p(1-59)':>9}{'p(60+)':>8}  source")
+        print(f"\n{'player':<16}{'mins':>6}{'p(0)':>7}{'p(start)':>10}{'p(1-59)':>9}{'p(60+)':>8}  source")
         for r in ranked:
             b = r["bands"]
             print(f"{r['web_name']:<16}{r['exp_minutes']:>6.0f}{b['p_zero']:>7.0%}"
-                  f"{b['p_1_59']:>9.0%}{b['p_60_plus']:>8.0%}  {r['source']}")
+                  f"{(r['p_start'] or 0):>10.0%}{b['p_1_59']:>9.0%}"
+                  f"{b['p_60_plus']:>8.0%}  {r['source']}")
 
     return payload
 

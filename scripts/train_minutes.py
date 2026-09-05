@@ -32,12 +32,32 @@ PRIOR_PLAYERS_URL = "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-L
 HALFLIVES = (3.0, 5.0, 8.0, 12.0)
 PEER_WEIGHTS = (0.5, 1.0, 2.0, 4.0)
 PROBABILITY_FLOOR = 0.01
+STATE_PROBABILITY_FLOOR = 0.001
 CLUB_CHANGE_RETENTION = 0.5  # explicit assumption; too few transitions to fit honestly
 OFFSEASON_GAP_GWS = 4
 FIRST_TEST_GW = 1
 
-ROLES = ("started_finished", "started_withdrawn", "benched_used", "unused")
+ROLE_STATES = (
+    "unused",
+    "cameo_1_29",
+    "cameo_30_59",
+    "cameo_60_plus",
+    "starter_1_59",
+    "starter_60_74",
+    "starter_75_89",
+    "starter_90_plus",
+)
 BANDS = ("p_zero", "p_1_59", "p_60_plus")
+STATE_DEFAULT_MINUTES = {
+    "unused": 0.0,
+    "cameo_1_29": 15.0,
+    "cameo_30_59": 42.0,
+    "cameo_60_plus": 65.0,
+    "starter_1_59": 50.0,
+    "starter_60_74": 67.0,
+    "starter_75_89": 82.0,
+    "starter_90_plus": 90.0,
+}
 
 
 def fetch_if_needed() -> None:
@@ -55,11 +75,20 @@ def fetch_if_needed() -> None:
 
 
 def role(row: dict) -> str:
-    if row["starts"] and row["minutes"] >= 90:
-        return "started_finished"
-    if row["starts"]:
-        return "started_withdrawn"
-    return "benched_used" if row["minutes"] else "unused"
+    minutes = row["minutes"]
+    if minutes == 0:
+        return "unused"
+    if not row["starts"]:
+        if minutes < 30:
+            return "cameo_1_29"
+        return "cameo_30_59" if minutes < 60 else "cameo_60_plus"
+    if minutes < 60:
+        return "starter_1_59"
+    if minutes < 75:
+        return "starter_60_74"
+    if minutes < 90:
+        return "starter_75_89"
+    return "starter_90_plus"
 
 
 def band(row: dict) -> str:
@@ -125,21 +154,44 @@ def peer_tables(rows: list[dict], before_gw: int, halflife: float) -> dict:
             table = tables["group"] if isinstance(key, tuple) else tables["position"]
             stats = table[key]
             stats[band(row)] += weight
-            stats[f"role:{role(row)}"] += weight
+            state = role(row)
+            stats[f"role:{state}"] += weight
+            stats[f"role_minutes:{state}"] += weight * row["minutes"]
             stats["minutes"] += weight * row["minutes"]
             stats["weight"] += weight
     return tables
 
 
-def predict(history: list[dict], target: dict, peers: dict, halflife: float, prior_weight: float) -> dict:
+def predict(
+    history: list[dict],
+    target: dict,
+    peers: dict,
+    halflife: float,
+    prior_weight: float,
+    state_driven: bool = True,
+) -> dict:
     group = (target["position"], price_band(target["value"]))
     peer = peers["group"].get(group) or peers["position"].get(target["position"]) or {}
     peer_bands = normalize(peer, BANDS, PROBABILITY_FLOOR)
-    peer_roles = normalize({key: peer.get(f"role:{key}", 0.0) for key in ROLES}, ROLES, PROBABILITY_FLOOR)
+    peer_roles = normalize(
+        {key: peer.get(f"role:{key}", 0.0) for key in ROLE_STATES},
+        ROLE_STATES,
+        PROBABILITY_FLOOR,
+    )
+    peer_state_minutes = {
+        key: (
+            peer.get(f"role_minutes:{key}", 0.0) / peer[f"role:{key}"]
+            if peer.get(f"role:{key}", 0.0) else STATE_DEFAULT_MINUTES[key]
+        )
+        for key in ROLE_STATES
+    }
     peer_minutes = peer.get("minutes", 0.0) / (peer.get("weight", 0.0) or 1.0)
 
     band_counts = {key: prior_weight * peer_bands[key] for key in BANDS}
-    role_counts = {key: prior_weight * peer_roles[key] for key in ROLES}
+    role_counts = {key: prior_weight * peer_roles[key] for key in ROLE_STATES}
+    role_minutes = {
+        key: role_counts[key] * peer_state_minutes[key] for key in ROLE_STATES
+    }
     minute_total = prior_weight * peer_minutes
     total_weight = prior_weight
     for row in history:
@@ -147,19 +199,47 @@ def predict(history: list[dict], target: dict, peers: dict, halflife: float, pri
         if row["team"] != target["team"]:
             weight *= CLUB_CHANGE_RETENTION
         band_counts[band(row)] += weight
-        role_counts[role(row)] += weight
+        state = role(row)
+        role_counts[state] += weight
+        role_minutes[state] += weight * row["minutes"]
         minute_total += weight * row["minutes"]
         total_weight += weight
+    states = normalize(role_counts, ROLE_STATES, STATE_PROBABILITY_FLOOR)
+    conditional = {
+        key: role_minutes[key] / role_counts[key] if role_counts[key] else STATE_DEFAULT_MINUTES[key]
+        for key in ROLE_STATES
+    }
+    state_bands = {
+        "p_zero": states["unused"],
+        "p_1_59": states["cameo_1_29"] + states["cameo_30_59"] + states["starter_1_59"],
+        "p_60_plus": states["cameo_60_plus"] + states["starter_60_74"]
+        + states["starter_75_89"] + states["starter_90_plus"],
+    }
+    bands = (
+        normalize(state_bands, BANDS, PROBABILITY_FLOOR)
+        if state_driven else normalize(band_counts, BANDS, PROBABILITY_FLOOR)
+    )
+    exp_minutes = (
+        sum(states[key] * conditional[key] for key in ROLE_STATES)
+        if state_driven else minute_total / total_weight
+    )
     return {
-        "bands": normalize(band_counts, BANDS, PROBABILITY_FLOOR),
-        "roles": normalize(role_counts, ROLES, PROBABILITY_FLOOR),
-        "exp_minutes": minute_total / total_weight,
+        "bands": bands,
+        "role_states": states,
+        "conditional_minutes_by_state": conditional,
+        "exp_minutes": exp_minutes,
         "personal_weight": total_weight - prior_weight,
         "peer_group": f"{group[0]}_{group[1]}m",
     }
 
 
-def metrics(rows: list[dict], prior_rows: list[dict], halflife: float, prior_weight: float) -> dict:
+def metrics(
+    rows: list[dict],
+    prior_rows: list[dict],
+    halflife: float,
+    prior_weight: float,
+    state_driven: bool = True,
+) -> dict:
     by_gw = defaultdict(list)
     for row in rows:
         by_gw[row["gw"]].append(row)
@@ -182,7 +262,9 @@ def metrics(rows: list[dict], prior_rows: list[dict], halflife: float, prior_wei
             peers = peer_tables(history_pool, gw, halflife)
             for target in targets:
                 history = histories[target["element"]]
-                forecast = predict(history, target, peers, halflife, prior_weight)
+                forecast = predict(
+                    history, target, peers, halflife, prior_weight, state_driven
+                )
                 actual_band = band(target)
                 actual_probability = max(forecast["bands"][actual_band], 1e-9)
                 brier = sum(
@@ -298,11 +380,20 @@ def serialize_peer_tables(tables: dict) -> dict:
             label = "_".join(map(str, key)) if isinstance(key, tuple) else str(key)
             result[table_name][label] = {
                 "bands": normalize(stats, BANDS, PROBABILITY_FLOOR),
-                "roles": normalize(
-                    {role_name: stats.get(f"role:{role_name}", 0.0) for role_name in ROLES},
-                    ROLES,
+                "role_states": normalize(
+                    {role_name: stats.get(f"role:{role_name}", 0.0) for role_name in ROLE_STATES},
+                    ROLE_STATES,
                     PROBABILITY_FLOOR,
                 ),
+                "conditional_minutes_by_state": {
+                    role_name: (
+                        stats.get(f"role_minutes:{role_name}", 0.0)
+                        / stats[f"role:{role_name}"]
+                        if stats.get(f"role:{role_name}", 0.0)
+                        else STATE_DEFAULT_MINUTES[role_name]
+                    )
+                    for role_name in ROLE_STATES
+                },
                 "exp_minutes": stats["minutes"] / stats["weight"],
                 "effective_rows": stats["weight"],
             }
@@ -318,17 +409,25 @@ def main() -> None:
     if not all(path.exists() for path in (GWS, PLAYERS, PRIOR_GWS, PRIOR_PLAYERS)):
         raise SystemExit("historical CSVs missing; run train_minutes.py --fetch")
     rows, prior_rows, _ = load_rows()
-    candidates = []
-    for halflife, prior_weight in itertools.product(HALFLIVES, PEER_WEIGHTS):
-        score = metrics(rows, prior_rows, halflife, prior_weight)
-        candidates.append((score["contenders"]["selection_score"], halflife, prior_weight, score))
-        print(f"half-life {halflife:>4.0f}  peer {prior_weight:>3g}  "
-              f"contender score {score['contenders']['selection_score']:.4f}")
-    _, halflife, prior_weight, best_metrics = min(candidates)
+    grids = {}
+    for label, state_driven in (("rich_states", True), ("coarse_bands", False)):
+        candidates = []
+        print(f"{label}:")
+        for halflife, prior_weight in itertools.product(HALFLIVES, PEER_WEIGHTS):
+            score = metrics(rows, prior_rows, halflife, prior_weight, state_driven)
+            candidates.append((score["contenders"]["selection_score"], halflife, prior_weight, score))
+            print(f"  half-life {halflife:>4.0f}  peer {prior_weight:>3g}  "
+                  f"score {score['contenders']['selection_score']:.4f}")
+        grids[label] = candidates
+    rich_best = min(grids["rich_states"])
+    coarse_best = min(grids["coarse_bands"])
+    state_driven = rich_best[0] < coarse_best[0]
+    selected_label = "rich_states" if state_driven else "coarse_bands"
+    _, halflife, prior_weight, best_metrics = rich_best if state_driven else coarse_best
     peer = serialize_peer_tables(peer_tables(prior_rows + rows, 39, halflife))
     baseline = empirical_baseline_metrics(rows)
     payload = {
-        "model_version": "hierarchical-minutes-v1",
+        "model_version": "hierarchical-minutes-v2",
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "training_season": "2025/26",
         "training_rows": len(rows),
@@ -346,6 +445,8 @@ def main() -> None:
             "decay_halflife_gws": halflife,
             "peer_prior_weight": prior_weight,
             "probability_floor": PROBABILITY_FLOOR,
+            "state_probability_floor": STATE_PROBABILITY_FLOOR,
+            "state_driven_outputs": state_driven,
             "club_change_retention": CLUB_CHANGE_RETENTION,
             "offseason_gap_gws": OFFSEASON_GAP_GWS,
         },
@@ -354,15 +455,26 @@ def main() -> None:
             "over their prior three matches; predict 2025/26 GW1-38 from only older rows"
         ),
         "metrics": best_metrics,
+        "challenger_comparison": {
+            "selected": selected_label,
+            "rich_states": rich_best[3],
+            "coarse_bands": coarse_best[3],
+        },
         "benchmark_current_empirical": baseline,
-        "grid": [
-            {
-                "decay_halflife_gws": h,
-                "peer_prior_weight": p,
-                "metrics": {key: value for key, value in score.items() if key != "calibration_contenders"},
-            }
-            for _, h, p, score in candidates
-        ],
+        "grid": {
+            label: [
+                {
+                    "decay_halflife_gws": h,
+                    "peer_prior_weight": p,
+                    "metrics": {
+                        key: value for key, value in score.items()
+                        if key != "calibration_contenders"
+                    },
+                }
+                for _, h, p, score in candidates
+            ]
+            for label, candidates in grids.items()
+        },
         "peer_priors": peer,
         "known_limits": [
             "club-change retention and offseason gap are explicit assumptions, not fitted",
@@ -372,7 +484,7 @@ def main() -> None:
     }
     MODEL.parent.mkdir(exist_ok=True)
     MODEL.write_text(json.dumps(payload, indent=2) + "\n")
-    print(f"selected half-life {halflife:g}, peer weight {prior_weight:g}")
+    print(f"selected {selected_label}: half-life {halflife:g}, peer weight {prior_weight:g}")
     print(f"wrote {MODEL.relative_to(ROOT)}")
 
 

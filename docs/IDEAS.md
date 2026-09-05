@@ -172,10 +172,19 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
     freeze their effective current, prior-season and peer weights. The old heuristic path
     remains an automatic fallback when the historical cache is absent. The gain is
     deliberately recorded as modest: versus the old empirical model on the comparable
-    later-GW contender slice, band log loss improved 0.7851 -> 0.7736 and Brier
-    0.4501 -> 0.4365, but minutes MAE worsened 25.65 -> 26.34. The combined selection
-    score moved only 1.0701 -> 1.0663. This is a better-calibrated early-history bridge,
+    later-GW contender slice, band log loss improved 0.7851 -> 0.7734 and Brier
+    0.4501 -> 0.4364, but minutes MAE worsened 25.65 -> 26.33. The combined selection
+    score moved only 1.0701 -> 1.0659. This is a better-calibrated early-history bridge,
     not a claim that minutes are solved.
+
+    **Richer minutes states, added 2026-09-05.** The model now retains eight joint
+    role/minutes outcomes: unused; cameos at 1-29, 30-59 and the rare 60-plus case; and
+    starters at 1-59, 60-74, 75-89 and 90-plus. Existing bands and expected minutes are
+    derived summaries, while start/cameo probabilities and conditional minutes remain
+    available for role security and future DefCon work. Against an independently tuned
+    coarse-band challenger on the same folds, the richer representation improved log
+    loss 0.77717 -> 0.77697, Brier 0.43849 -> 0.43836, minutes MAE 26.398 -> 26.385 and
+    combined score 1.07048 -> 1.07013. This is a narrow measured win, not a material jump.
 
     **GW4 model-input audit and fixes, 2026-09-05.** The live run found three material
     issues before any recommendation was made:

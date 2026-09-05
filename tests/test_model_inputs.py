@@ -34,16 +34,21 @@ class CompletedHistoryTests(unittest.TestCase):
                 "decay_halflife_gws": 3.0,
                 "peer_prior_weight": 0.5,
                 "probability_floor": 0.01,
+                "state_probability_floor": 0.001,
+                "state_driven_outputs": True,
                 "club_change_retention": 0.5,
                 "offseason_gap_gws": 4,
             },
             "peer_priors": {
                 "group": {"MID_7": {
                     "bands": {"p_zero": 0.1, "p_1_59": 0.2, "p_60_plus": 0.7},
-                    "roles": {
-                        "started_finished": 0.5, "started_withdrawn": 0.2,
-                        "benched_used": 0.2, "unused": 0.1,
+                    "role_states": {
+                        "unused": 0.1, "cameo_1_29": 0.05, "cameo_30_59": 0.05,
+                        "cameo_60_plus": 0.0, "starter_1_59": 0.1,
+                        "starter_60_74": 0.1, "starter_75_89": 0.2,
+                        "starter_90_plus": 0.4,
                     },
+                    "conditional_minutes_by_state": minutes.train_minutes.STATE_DEFAULT_MINUTES,
                     "exp_minutes": 65.0,
                 }},
                 "position": {},
@@ -66,6 +71,10 @@ class CompletedHistoryTests(unittest.TestCase):
         self.assertEqual(result["audit"]["peer_effective_weight"], 0.5)
         self.assertGreater(result["audit"]["current_effective_weight"], 0)
         self.assertGreater(result["audit"]["prior_season_effective_weight"], 0)
+        self.assertAlmostEqual(
+            result["p_start"] + result["p_cameo"] + result["role_states"]["unused"],
+            1.0,
+        )
 
 
 class PriorTests(unittest.TestCase):

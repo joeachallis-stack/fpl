@@ -278,11 +278,24 @@ fit uses a three-GW half-life and half an effective peer observation. Club-chang
 retention (0.5) and a four-GW offseason gap remain labeled assumptions because two
 seasons cannot fit them reliably.
 
+The fitted target is an eight-state joint role/minutes distribution: unused, 1-29 cameo,
+30-59 cameo, rare 60-plus cameo, starter under 60, starter 60-74, starter 75-89, and
+starter 90-plus. The rare eighth state preserves the real 60-minute FPL boundary for an
+unusually early substitute. Each state retains its conditional expected minutes. The
+public `p_zero` / `p_1_59` / `p_60_plus`, expected minutes, start probability, cameo
+probability, and conditional start/cameo minutes are derived from that richer object.
+
+This richer-state representation was tested as a challenger against independently
+re-tuned coarse bands on exactly the same walk-forward folds. It won narrowly: contender
+log loss 0.77717 -> 0.77697, Brier 0.43849 -> 0.43836, minutes MAE 26.398 -> 26.385,
+and combined score 1.07048 -> 1.07013. The structural detail is useful, but the measured
+forecast improvement is tiny and should be described that way.
+
 On the comparable GW6-38 contender slice, the trained model improved band log loss
-from 0.7851 to 0.7736 and Brier score from 0.4501 to 0.4365, while minutes MAE worsened
-from 25.65 to 26.34. Its combined selection score improved only from 1.0701 to 1.0663:
+from 0.7851 to 0.7734 and Brier score from 0.4501 to 0.4364, while minutes MAE worsened
+from 25.65 to 26.33. Its combined selection score improved only from 1.0701 to 1.0659:
 useful but modest, not evidence that minutes are solved. Across all contender folds,
-expected calibration error is 0.0395 for nonappearance and 0.0335 for 60-plus. The full
+expected calibration error is 0.0396 for nonappearance and 0.0322 for 60-plus. The full
 bins remain in the artifact so tail miscalibration is visible rather than summarized
 away.
 
