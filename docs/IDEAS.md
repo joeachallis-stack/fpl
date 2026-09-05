@@ -322,9 +322,62 @@ Build these one measured component at a time rather than turning them into one o
    accuracy win; the change earns its place because it implements the scoring/exposure
    rules correctly without degrading the aggregate result. The test does not validate
    the separate bookmaker/FDR goal-rate model.
-3. **Bonus — wait for evidence.** The 2026/27 BPS changes make prior-season player-type
-   effects directionally unreliable. Keep the transparent current-season fallback until
-   enough finalized 2026/27 weeks exist for a walk-forward challenger.
+3. **Bonus — designed 2026-09-05, build trigger set. Not yet built.**
+
+   The original plan was to wait for enough 2026/27 weeks to fit a player-type model.
+   That framing is wrong, and it is why this component kept getting deferred: it assumes
+   we must learn *which players collect bonus*, which is exactly what the 2026/27 BPS
+   retune makes unlearnable from history.
+
+   Two structural facts change the approach.
+
+   **Bonus is a rank statistic, not a rate.** Three bonus points go to the top BPS scorer
+   in each match, two to second, one to third. The current shrunk per-player rate ignores
+   this entirely — it cannot represent two Arsenal defenders competing with each other for
+   the same bonus, or the fact that a 4-0 win hands out the same three bonus points as a
+   1-1 draw. Any per-player rate model is structurally wrong here regardless of how well
+   it is calibrated.
+
+   **The BPS table can be learned from our own ledger rather than sourced.** BPS is a
+   linear function of counted actions. The API does not publish the award table and
+   `docs/RULES_2026_27.md` only records that it was "tweaked", but the ledger stores both
+   `bps` and its inputs, so a regression recovers the coefficients directly. On the 622
+   played rows currently available it returns recognisable values — goals +22.13, assists
+   +11.34, clean sheet +5.53, yellow -4.71, own goal -8.06 — at R2 = 0.783. This
+   automatically tracks the current season's rules with no external dependency and no
+   2025/26 contamination, which is precisely what the deferral was waiting for.
+
+   **The missing 22% is irreducible and must be modelled as noise, not ignored.** FPL
+   counts passes completed, big chances created, shots on target, dribbles, fouls,
+   offsides and errors leading to a goal, none of which the API exposes per player.
+   Residual SD is 5.68 BPS against a total SD of 12.19.
+
+   Measured viability, ranking players within each match on BPS predicted from observables
+   alone: **80.6% of actual bonus recipients correctly identified** (50/62), with the whole
+   bonus set exactly right in 45% of fixtures. Ranking on actual BPS recovers 100% by
+   construction, so that 19-point gap is the cost of the unobserved fields.
+
+   Note carefully that 80.6% uses *realized* components. Production would feed *projected*
+   components, so it is a hard upper bound and the realistic figure is materially lower.
+
+   Proposed implementation, reusing what already exists:
+
+   1. Fit BPS coefficients on current-season ledger rows; freeze them into each projection
+      archive alongside the scoring rules, as the other components already do.
+   2. Monte Carlo per fixture: draw each player's components from the existing minutes,
+      goals, assists, clean-sheet, saves and DefCon distributions; compute BPS from the
+      fitted coefficients; add a N(0, residual SD) term for the unobserved fields; rank;
+      award 3/2/1.
+   3. Average across draws for expected bonus per player. The noise term matters — without
+      it no player would ever be uncertain of bonus, which is plainly false.
+
+   **Build trigger: roughly GW8-10.** The blocker is ledger volume, not frozen archives —
+   16 coefficients on 622 rows is thin, and the ledger grows about 600 rows a week, so
+   ~2,500 rows by GW8 is comfortable. This is on a *different clock* from the rest of the
+   backlog, which waits on resolved forecasts.
+
+   Worth keeping in proportion: bonus is 7.0% of all points scored in the ledger so far.
+   This is a real component, not a decisive one.
 4. **Penalty saves — defer.** Preserve them in observations, but do not fit a noisy
    player-specific rare-event model without enough evidence. A strongly pooled future
    model must beat an explicit zero/frequency baseline before earning a place in xP.
