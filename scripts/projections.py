@@ -389,6 +389,41 @@ def fdr_goal_priors(odds_rows: list[dict], fixtures: list[dict]) -> tuple[dict, 
     return priors, diagnostics
 
 
+def history_completeness(fixtures: list[dict], target_gw: int) -> dict:
+    """How evenly the preceding gameweek has landed in each player's history.
+
+    There is already a guard against ranking a target gameweek with partial odds. This is
+    the mirror image on the input side: while the previous round is still being played,
+    some players' rates include it and others' do not, purely by kickoff time. A player
+    whose club has played carries an extra gameweek of evidence over one whose club has
+    not, and comparing them against each other is the entire purpose of the output.
+
+    Nothing here is corrupt — completed_history() correctly excludes unplayed rows — but
+    the population is unevenly updated, which biases relative ranking rather than any
+    single estimate. Reported rather than enforced, because a provisional look before a
+    round finishes is legitimate as long as it is not mistaken for the decision.
+    """
+    previous = target_gw - 1
+    rows = [row for row in fixtures if row.get("event") == previous]
+    if not rows:
+        return {"previous_gw": previous, "fixtures": 0, "complete": 0,
+                "partial": False, "teams_awaiting": []}
+    def done(row: dict) -> bool:
+        return bool(row.get("finished") or row.get("finished_provisional"))
+    complete = sum(1 for row in rows if done(row))
+    awaiting = sorted(
+        {row["team_h"] for row in rows if not done(row)}
+        | {row["team_a"] for row in rows if not done(row)}
+    )
+    return {
+        "previous_gw": previous,
+        "fixtures": len(rows),
+        "complete": complete,
+        "partial": 0 < complete < len(rows),
+        "teams_awaiting": awaiting,
+    }
+
+
 def extend_horizon(
     payload: dict, bootstrap: dict, fixtures: list[dict], odds_payload: dict,
     horizon: int, defcon_context: dict | None, save_context: dict | None,
@@ -857,6 +892,8 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "scoring_rules": scoring,
             "unmodeled": ["penalty saves", "penalty misses", "own goals"],
             "horizon": horizon,
+            "previous_gw_completeness": history_completeness(
+                load(DATA_DIR / "fixtures.json"), target_gw),
             "horizon_discount": HORIZON_DISCOUNT,
             "form_prior_matches": FORM_PRIOR_MATCHES,
             "prior_strength": PRIOR_STRENGTH,
@@ -899,6 +936,18 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
     assign_calibration_weights(payload, bootstrap)
     OUT.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote {OUT.relative_to(ROOT)} — {len(records)} players, GW{target_gw}")
+    completeness = payload["meta"].get("previous_gw_completeness") or {}
+    if completeness.get("partial"):
+        names = {team["id"]: team["short_name"] for team in bootstrap["teams"]}
+        waiting = ", ".join(
+            names.get(team_id, str(team_id)) for team_id in completeness["teams_awaiting"]
+        )
+        print(
+            f"  WARNING: GW{completeness['previous_gw']} is only "
+            f"{completeness['complete']}/{completeness['fixtures']} complete — players at "
+            f"{waiting} carry one fewer gameweek of evidence than everyone else, so "
+            f"comparisons across players are unfair until the round finishes"
+        )
     sparse = payload["model_inputs"]["fdr_calibration"]["sparse_buckets"]
     total_sides = payload["model_inputs"]["fdr_calibration"]["total_market_team_sides"]
     if sparse:
