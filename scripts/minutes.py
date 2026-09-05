@@ -1,4 +1,4 @@
-"""Empirical minutes model: a distribution over next gameweek's minutes, per player.
+"""Hierarchical minutes model: a distribution over next gameweek's minutes, per player.
 
 Why a distribution and not an average: FPL points don't scale smoothly with minutes.
 There is a cliff at 60 (1 appearance point below it, 2 at or above) and DefCon triggers
@@ -15,8 +15,9 @@ So: role buckets in, scoring-aligned bands out.
                    — what the scoring rules actually care about. Nothing downstream
                      needs to know whether 70 minutes came from the bench.
 
-The fallback stack for thin or absent evidence is specified in docs/IDEAS.md
-("Settled 2026-09-03 — the fallback stack") and implemented in predict() below.
+The trained path blends completed current-season roles, code-matched prior-season match
+rows, and a position/price peer prior. The original empirical rules remain the automatic
+fallback when the historical cache or fitted artifact is unavailable.
 
 Usage:
     python scripts/minutes.py                    # write data/minutes.json, print a summary
@@ -27,16 +28,21 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+
+import train_minutes
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "minutes.json"
 ARCHIVE_DIR = ROOT / "minutes"
 
-MODEL_VERSION = "empirical-v1"
+MODEL_VERSION = "hierarchical-v1"
+TRAINED_MODEL = ROOT / "models" / "minutes_params.json"
 
 # Fewest gameweeks that counts as real evidence. Two is deliberate: this season is all
 # the per-gameweek history the FPL API exposes (history_past is season totals only), so
@@ -78,6 +84,42 @@ OUT_STATUSES = {"i", "s", "u"}  # injured, suspended, unavailable — hard zero
 def load(name: str) -> dict:
     with open(DATA_DIR / name) as f:
         return json.load(f)
+
+
+def completed_fixture_ids(fixtures: list[dict]) -> set[int]:
+    """Fixtures whose player rows are safe to use as historical evidence.
+
+    The element-summary endpoint creates an all-zero history row before a fixture has
+    finished. Round number alone therefore cannot distinguish evidence from a placeholder.
+    `finished_provisional` is sufficient for forecasting; official corrections are handled
+    separately by the finalized observations ledger.
+    """
+    return {
+        fixture["id"]
+        for fixture in fixtures
+        if fixture.get("finished") or fixture.get("finished_provisional")
+    }
+
+
+def completed_history(history: list[dict], fixtures: list[dict]) -> list[dict]:
+    completed = completed_fixture_ids(fixtures)
+    return [row for row in history if row.get("fixture") in completed]
+
+
+def load_trained_context() -> tuple[dict, dict[int, list[dict]]] | None:
+    """Load the fitted parameters and safely code-matched prior-season match rows."""
+    if not TRAINED_MODEL.exists() or not train_minutes.GWS.exists() or not train_minutes.PLAYERS.exists():
+        return None
+    model_bytes = TRAINED_MODEL.read_bytes()
+    model = json.loads(model_bytes)
+    model["_artifact_sha256"] = hashlib.sha256(model_bytes).hexdigest()
+    prior_rows, _ = train_minutes.load_season(
+        train_minutes.GWS, train_minutes.PLAYERS, True
+    )
+    by_code = defaultdict(list)
+    for row in prior_rows:
+        by_code[row["element"]].append(row)
+    return model, by_code
 
 
 def role_bucket(row: dict) -> str:
@@ -145,13 +187,97 @@ def weighted(history: list[dict], current_gw: int) -> tuple[dict, dict, float, f
     return roles, apply_floor(bands), exp_mins / total_w, total_w
 
 
-def predict(player: dict, history: list[dict], current_gw: int, owned: bool) -> dict:
+def trained_prediction(
+    player: dict,
+    history: list[dict],
+    current_gw: int,
+    team_name: str,
+    position: str,
+    context: tuple[dict, dict[int, list[dict]]],
+) -> dict:
+    """Hierarchical bands/minutes using current rows, stable-code history and peer prior."""
+    model, prior_by_code = context
+    params = model["selected"]
+    group = f"{position}_{player['now_cost'] // 10}"
+    peer = (
+        model["peer_priors"]["group"].get(group)
+        or model["peer_priors"]["position"][position]
+    )
+    peer_weight = params["peer_prior_weight"]
+    band_counts = {key: peer_weight * peer["bands"][key] for key in peer["bands"]}
+    role_counts = {key: peer_weight * peer["roles"][key] for key in peer["roles"]}
+    minute_total = peer_weight * peer["exp_minutes"]
+    current_weight = prior_weight = 0.0
+    prior_rows = prior_by_code.get(player["code"], [])
+
+    observations = [
+        ({"minutes": row["minutes"], "starts": row["starts"]},
+         current_gw - row["round"], False, row.get("team_name", team_name))
+        for row in history
+    ] + [
+        (row, current_gw + params["offseason_gap_gws"] + 38 - row["gw"], True, row["team"])
+        for row in prior_rows
+    ]
+    for row, age, is_prior, observed_team in observations:
+        weight = 0.5 ** (age / params["decay_halflife_gws"])
+        if observed_team != team_name:
+            weight *= params["club_change_retention"]
+        band_counts[band(row["minutes"])] += weight
+        role_counts[role_bucket(row)] += weight
+        minute_total += weight * row["minutes"]
+        if is_prior:
+            prior_weight += weight
+        else:
+            current_weight += weight
+    total_weight = peer_weight + current_weight + prior_weight
+    bands = train_minutes.normalize(
+        band_counts, train_minutes.BANDS, params["probability_floor"]
+    )
+    roles = train_minutes.normalize(
+        role_counts, train_minutes.ROLES, params["probability_floor"]
+    )
+    return {
+        "bands": bands,
+        "roles": roles,
+        "exp_minutes": minute_total / total_weight,
+        "prior_n_obs": len(prior_rows),
+        "audit": {
+            "training_model_version": model["model_version"],
+            "training_season": model["training_season"],
+            "gameweeks_sha256": model["gameweeks_sha256"],
+            "model_artifact_sha256": model["_artifact_sha256"],
+            "stable_player_code": player["code"],
+            "peer_group": group if group in model["peer_priors"]["group"] else position,
+            "peer_effective_weight": round(peer_weight, 4),
+            "current_effective_weight": round(current_weight, 4),
+            "prior_season_effective_weight": round(prior_weight, 4),
+            "parameters": params,
+        },
+    }
+
+
+def predict(
+    player: dict,
+    history: list[dict],
+    current_gw: int,
+    owned: bool,
+    trained: dict | None = None,
+) -> dict:
     """The fallback stack from docs/IDEAS.md, in order. Rules are numbered to match."""
     status = player["status"]
     chance = player.get("chance_of_playing_next_round")
     played_this_season = player["minutes"] > 0
 
     roles, emp_bands, emp_mins, eff_n = weighted(history, current_gw)
+    if trained:
+        roles = trained["roles"]
+        emp_bands = trained["bands"]
+        emp_mins = trained["exp_minutes"]
+        eff_n = (
+            trained["audit"]["peer_effective_weight"]
+            + trained["audit"]["current_effective_weight"]
+            + trained["audit"]["prior_season_effective_weight"]
+        )
     record = {
         "element": player["id"],
         "web_name": player["web_name"],
@@ -169,6 +295,8 @@ def predict(player: dict, history: list[dict], current_gw: int, owned: bool) -> 
         "now_cost": player["now_cost"],
         "insufficient_evidence": False,
         "override": None,
+        "prior_n_obs": trained["prior_n_obs"] if trained else 0,
+        "training_audit": trained["audit"] if trained else None,
     }
 
     # Rule 1 — injured, suspended or unavailable. Hard zero, not a blended signal.
@@ -187,8 +315,13 @@ def predict(player: dict, history: list[dict], current_gw: int, owned: bool) -> 
         bands = bands_from_minutes(exp)
 
     # Rule 5 — enough evidence. The empirical distribution, no fallback needed.
+    elif trained:
+        record["source"] = "hierarchical_trained"
+        exp, bands = emp_mins, emp_bands
+
+    # Legacy fallback when the historical training cache is unavailable.
     elif len(history) >= MIN_OBS:
-        record["source"] = "empirical"
+        record["source"] = "empirical_fallback"
         exp, bands = emp_mins, emp_bands
 
     # Rule 3 — thin evidence but owned. Can't decline to recommend someone in the squad.
@@ -207,7 +340,7 @@ def predict(player: dict, history: list[dict], current_gw: int, owned: bool) -> 
     # player with no minutes is not in the team, whatever price or fitness implies.
     # Skipped where the answer is already zero, and where refusing to guess is the
     # answer — halving a refusal means nothing.
-    if not played_this_season and exp > 0 and not record["insufficient_evidence"]:
+    if not trained and not played_this_season and exp > 0 and not record["insufficient_evidence"]:
         exp *= NEVER_PLAYED_FACTOR
         bands = bands_from_minutes(exp)
         record["never_played_penalty"] = True
@@ -290,6 +423,8 @@ def cmd_resolve(gw: int) -> None:
 
 def build(show: int = 0) -> dict:
     bootstrap = load("bootstrap.json")
+    fixtures = load("fixtures.json")
+    trained_context = load_trained_context()
     current_gw = next((e["id"] for e in bootstrap["events"] if e.get("is_next")), None)
     if current_gw is None:
         raise SystemExit("no upcoming gameweek in bootstrap.json — season over?")
@@ -301,23 +436,56 @@ def build(show: int = 0) -> dict:
         with open(picks_path) as f:
             owned = {p["element"] for p in json.load(f)["picks"]}
 
+    team_names = {team["id"]: team["name"] for team in bootstrap["teams"]}
+    fixtures_by_id = {fixture["id"]: fixture for fixture in fixtures}
+    positions = {
+        row["id"]: row["singular_name_short"] for row in bootstrap["element_types"]
+    }
     records = {}
     for player in bootstrap["elements"]:
         path = DATA_DIR / f"element_summary/{player['id']}.json"
         if not path.exists():
             continue
         with open(path) as f:
-            history = json.load(f)["history"]
-        records[str(player["id"])] = predict(player, history, current_gw, player["id"] in owned)
+            all_history = json.load(f)["history"]
+        history = completed_history(all_history, fixtures)
+        for row in history:
+            fixture = fixtures_by_id[row["fixture"]]
+            historical_team = fixture["team_h"] if row["was_home"] else fixture["team_a"]
+            row["team_name"] = team_names[historical_team]
+        trained = trained_prediction(
+            player,
+            history,
+            current_gw,
+            team_names[player["team"]],
+            positions[player["element_type"]],
+            trained_context,
+        ) if trained_context else None
+        records[str(player["id"])] = predict(
+            player, history, current_gw, player["id"] in owned, trained
+        )
 
     payload = {
         "meta": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "model_version": MODEL_VERSION,
             "gw": current_gw,
-            "decay_halflife_gws": DECAY_HALFLIFE_GWS,
+            "decay_halflife_gws": (
+                trained_context[0]["selected"]["decay_halflife_gws"]
+                if trained_context else DECAY_HALFLIFE_GWS
+            ),
+            "legacy_decay_halflife_gws": DECAY_HALFLIFE_GWS,
             "min_obs": MIN_OBS,
             "band_floor": BAND_FLOOR,
+            "history_policy": "fixture finished or finished_provisional",
+            "completed_fixtures": len(completed_fixture_ids(fixtures)),
+            "trained_model": (
+                trained_context[0]["model_version"] if trained_context else None
+            ),
+            "trained_model_sha256": (
+                trained_context[0]["_artifact_sha256"] if trained_context else None
+            ),
+            "training_fallback": trained_context is None,
             "players": len(records),
         },
         "players": records,

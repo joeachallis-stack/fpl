@@ -15,6 +15,7 @@ import argparse
 import json
 import math
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 import minutes
@@ -23,13 +24,27 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "projections.json"
 ARCHIVE_DIR = ROOT / "projections"
-MODEL_VERSION = "baseline-v1"
+MODEL_VERSION = "baseline-v2"
 PRIOR_STRENGTH = 5.0
-RARE_PRIOR_STRENGTH = 20.0
-ATTACK_PRIOR_MINUTES = 180.0
+# Last season is useful early evidence, but not a permanent claim about the player's
+# current role. Ten matches is an explicit starting assumption to recalibrate from the
+# frozen archives; current-season minutes dilute it one-for-one.
+PLAYER_PRIOR_MINUTES = 900.0
+# Before becoming the player's prior, a prior-season rate is itself pulled toward the
+# positional population by five matches. This limits one small prior-season sample.
+POSITION_PRIOR_MINUTES = 450.0
 DEFAULT_HORIZON = 6
 HORIZON_DISCOUNT = 0.85
 FORM_PRIOR_MATCHES = 5.0
+FDR_BUCKET_PRIOR_SIDES = 3
+FDR_SPARSE_MIN_SIDES = 3
+PREVIOUS_SEASON_FIELDS = (
+    "season_name", "element_code", "total_points", "minutes", "starts",
+    "goals_scored", "assists", "clean_sheets", "goals_conceded", "own_goals",
+    "penalties_saved", "penalties_missed", "yellow_cards", "red_cards", "saves",
+    "bonus", "bps", "defensive_contribution", "expected_goals", "expected_assists",
+    "expected_goals_conceded",
+)
 
 
 def load(path: Path) -> dict | list:
@@ -94,11 +109,30 @@ def expected_goal_conceded_deduction(lam: float) -> float:
     return sum((goals // 2) * poisson_pmf(goals, lam) for goals in range(12))
 
 
-def history_for(player_id: int, target_gw: int) -> list[dict]:
+@lru_cache(maxsize=None)
+def history_for(player_id: int, target_gw: int) -> tuple[dict, ...]:
     path = DATA_DIR / f"element_summary/{player_id}.json"
     if not path.exists():
-        return []
-    return [row for row in load(path)["history"] if row["round"] < target_gw]
+        return ()
+    fixtures = load(DATA_DIR / "fixtures.json")
+    history = minutes.completed_history(load(path)["history"], fixtures)
+    return tuple(row for row in history if row["round"] < target_gw)
+
+
+@lru_cache(maxsize=None)
+def previous_season_for(player_id: int) -> dict | None:
+    path = DATA_DIR / f"element_summary/{player_id}.json"
+    if not path.exists():
+        return None
+    rows = load(path).get("history_past", [])
+    return rows[-1] if rows else None
+
+
+def previous_season_snapshot(previous: dict | None) -> dict | None:
+    """Keep the official actuals needed to reinterpret a frozen prior later."""
+    if not previous:
+        return None
+    return {field: previous.get(field) for field in PREVIOUS_SEASON_FIELDS}
 
 
 def defensive_actions(row: dict, position: str) -> int:
@@ -111,7 +145,7 @@ def defensive_actions(row: dict, position: str) -> int:
 def build_priors(players: list[dict], types: dict[int, str], target_gw: int) -> dict:
     buckets = {
         position: {"plays": 0, "minutes": 0, "xg": 0.0, "xa": 0.0, "yellow": 0,
-                   "red": 0, "defcon": 0, "bonus": 0.0, "save_points": 0.0}
+                   "red": 0, "defcon": 0, "bonus": 0.0, "saves": 0}
         for position in types.values()
     }
     for player in players:
@@ -128,7 +162,7 @@ def build_priors(players: list[dict], types: dict[int, str], target_gw: int) -> 
             bucket["yellow"] += bool(row.get("yellow_cards"))
             bucket["red"] += bool(row.get("red_cards"))
             bucket["bonus"] += row.get("bonus", 0)
-            bucket["save_points"] += row.get("saves", 0) // 3
+            bucket["saves"] += row.get("saves", 0)
             if position != "GKP" and defensive_actions(row, position) >= threshold:
                 bucket["defcon"] += 1
     priors = {}
@@ -139,9 +173,11 @@ def build_priors(players: list[dict], types: dict[int, str], target_gw: int) -> 
             "red": bucket["red"] / plays,
             "defcon": bucket["defcon"] / plays,
             "bonus": bucket["bonus"] / plays,
-            "save_points": bucket["save_points"] / plays,
-            "xg_per_90": bucket["xg"] * 90 / (bucket["minutes"] or 1),
-            "xa_per_90": bucket["xa"] * 90 / (bucket["minutes"] or 1),
+            "expected_goals_per_90": bucket["xg"] * 90 / (bucket["minutes"] or 1),
+            "expected_assists_per_90": bucket["xa"] * 90 / (bucket["minutes"] or 1),
+            "yellow_cards_per_90": bucket["yellow"] * 90 / (bucket["minutes"] or 1),
+            "red_cards_per_90": bucket["red"] * 90 / (bucket["minutes"] or 1),
+            "saves_per_90": bucket["saves"] * 90 / (bucket["minutes"] or 1),
             "sample": bucket["plays"],
         }
     return priors
@@ -151,35 +187,86 @@ def shrunk_rate(successes: float, n: int, prior: float, strength: float = PRIOR_
     return (successes + prior * strength) / (n + strength)
 
 
-def attacking_rate(player: dict, position: str, target_gw: int, prior: dict, stat: str) -> float:
-    """Per-90 xG/xA shrunk by minutes, so two hot games cannot own a team forecast."""
+def prior_season_rate(previous: dict | None, field: str, position_rate: float) -> tuple[float, dict]:
+    """Build an auditable player prior from the latest official season aggregate."""
+    previous_minutes = int(previous.get("minutes", 0)) if previous else 0
+    previous_total = float(previous.get(field) or 0) if previous else 0.0
+    if previous_minutes:
+        rate = (
+            previous_total * 90 + position_rate * POSITION_PRIOR_MINUTES
+        ) / (previous_minutes + POSITION_PRIOR_MINUTES)
+        source = "previous_season_shrunk_to_position"
+    else:
+        rate = position_rate
+        source = "position_only"
+    return rate, {
+        "source": source,
+        "season": previous.get("season_name") if previous else None,
+        "raw_total": round(previous_total, 5),
+        "raw_minutes": previous_minutes,
+        "raw_per_90": round(previous_total * 90 / previous_minutes, 5) if previous_minutes else None,
+        "position_per_90": round(position_rate, 5),
+        "position_prior_minutes": POSITION_PRIOR_MINUTES,
+        "player_prior_per_90": round(rate, 5),
+        "effective_prior_minutes": PLAYER_PRIOR_MINUTES,
+    }
+
+
+def blended_per_90(player: dict, target_gw: int, prior: dict, field: str) -> tuple[float, dict]:
+    """Blend completed current-season evidence with a finite prior-season anchor."""
     rows = history_for(player["id"], target_gw)
     played_minutes = sum(row["minutes"] for row in rows)
-    history_field = {"xg": "expected_goals", "xa": "expected_assists"}[stat]
-    observed = sum(float(row.get(history_field) or 0) for row in rows)
-    prior_rate = prior[f"{stat}_per_90"]
-    return (observed * 90 + prior_rate * ATTACK_PRIOR_MINUTES) / (
-        played_minutes + ATTACK_PRIOR_MINUTES
+    observed = sum(float(row.get(field) or 0) for row in rows)
+    position_rate = prior[f"{field}_per_90"]
+    previous = previous_season_for(player["id"])
+    player_prior, audit = prior_season_rate(previous, field, position_rate)
+    rate = (observed * 90 + player_prior * PLAYER_PRIOR_MINUTES) / (
+        played_minutes + PLAYER_PRIOR_MINUTES
     )
+    audit.update({
+        "current_total": round(observed, 5),
+        "current_minutes": played_minutes,
+        "current_per_90": round(observed * 90 / played_minutes, 5) if played_minutes else None,
+        "blended_per_90": round(rate, 5),
+    })
+    return rate, audit
 
 
-def historical_components(player: dict, position: str, target_gw: int, prior: dict, p_play: float, p_60: float) -> dict:
+def historical_components(
+    player: dict,
+    position: str,
+    target_gw: int,
+    prior: dict,
+    p_play: float,
+    p_60: float,
+    exp_minutes: float,
+) -> dict:
     rows = [row for row in history_for(player["id"], target_gw) if row["minutes"] > 0]
     n = len(rows)
     threshold = 10 if position == "DEF" else 12
-    yellow = shrunk_rate(sum(bool(r.get("yellow_cards")) for r in rows), n, prior["yellow"])
-    red = shrunk_rate(sum(bool(r.get("red_cards")) for r in rows), n, prior["red"], RARE_PRIOR_STRENGTH)
+    yellow, yellow_audit = blended_per_90(player, target_gw, prior, "yellow_cards")
+    red, red_audit = blended_per_90(player, target_gw, prior, "red_cards")
+    saves, saves_audit = (
+        blended_per_90(player, target_gw, prior, "saves")
+        if position == "GKP" else (0.0, None)
+    )
     bonus = shrunk_rate(sum(r.get("bonus", 0) for r in rows), n, prior["bonus"])
     defcon_hits = sum(defensive_actions(r, position) >= threshold for r in rows) if position != "GKP" else 0
     defcon = shrunk_rate(defcon_hits, n, prior["defcon"]) if position != "GKP" else 0
-    save_points = shrunk_rate(sum(r.get("saves", 0) // 3 for r in rows), n, prior["save_points"])
     return {
-        "yellow": -yellow * p_play,
-        "red": -3 * red * p_play,
+        "yellow": -yellow * exp_minutes / 90,
+        "red": -3 * red * exp_minutes / 90,
         "defcon": 2 * defcon * p_60,
         "bonus": bonus * p_play,
-        "saves": save_points * p_play if position == "GKP" else 0.0,
+        "saves": saves / 3 * exp_minutes / 90 if position == "GKP" else 0.0,
         "history_appearances": n,
+        "prior_audit": {
+            "yellow_cards": yellow_audit,
+            "red_cards": red_audit,
+            **({"saves": saves_audit} if saves_audit else {}),
+            "bonus": "previous season excluded because 2026/27 BPS rules changed",
+            "defcon": "previous aggregate cannot reconstruct per-match threshold hits",
+        },
     }
 
 
@@ -218,8 +305,30 @@ def recent_team_factors(team_ids: list[int]) -> tuple[dict[int, float], dict[int
     )
 
 
-def fdr_goal_priors(odds_rows: list[dict], fixtures: list[dict]) -> dict[tuple[bool, int], float]:
-    """Calibrate venue/FDR goal-rate buckets from the current bookmaker market."""
+def isotonic_decreasing(values: list[float], weights: list[float]) -> list[float]:
+    """Weighted pool-adjacent-violators fit constrained to non-increasing values."""
+    blocks = []
+    for index, (value, weight) in enumerate(zip(values, weights)):
+        blocks.append({"start": index, "end": index, "weight": weight, "mean": value})
+        while len(blocks) >= 2 and blocks[-2]["mean"] < blocks[-1]["mean"]:
+            right = blocks.pop()
+            left = blocks.pop()
+            weight = left["weight"] + right["weight"]
+            blocks.append({
+                "start": left["start"],
+                "end": right["end"],
+                "weight": weight,
+                "mean": (left["mean"] * left["weight"] + right["mean"] * right["weight"]) / weight,
+            })
+    fitted = [0.0] * len(values)
+    for block in blocks:
+        for index in range(block["start"], block["end"] + 1):
+            fitted[index] = block["mean"]
+    return fitted
+
+
+def fdr_goal_priors(odds_rows: list[dict], fixtures: list[dict]) -> tuple[dict, dict]:
+    """Odds-calibrated FDR rates, constrained to get harder from FDR 1 through 5."""
     fixtures_by_id = {row["id"]: row for row in fixtures}
     buckets = {}
     all_rates = []
@@ -238,11 +347,44 @@ def fdr_goal_priors(odds_rows: list[dict], fixtures: list[dict]) -> dict[tuple[b
             all_rates.append(value)
     global_rate = sum(all_rates) / len(all_rates)
     priors = {}
+    diagnostics = {
+        "global_goal_rate": round(global_rate, 5),
+        "global_prior_team_sides_per_bucket": FDR_BUCKET_PRIOR_SIDES,
+        "sparse_below_market_team_sides": FDR_SPARSE_MIN_SIDES,
+        "venues": {},
+    }
     for home in (False, True):
+        raw = []
+        weights = []
+        counts = []
         for difficulty in range(1, 6):
             values = buckets.get((home, difficulty), [])
-            priors[(home, difficulty)] = (sum(values) + 3 * global_rate) / (len(values) + 3)
-    return priors
+            raw.append(
+                (sum(values) + FDR_BUCKET_PRIOR_SIDES * global_rate)
+                / (len(values) + FDR_BUCKET_PRIOR_SIDES)
+            )
+            weights.append(len(values) + FDR_BUCKET_PRIOR_SIDES)
+            counts.append(len(values))
+        fitted = isotonic_decreasing(raw, weights)
+        venue = "home" if home else "away"
+        diagnostics["venues"][venue] = {
+            f"fdr{difficulty}": {
+                "market_team_sides": counts[difficulty - 1],
+                "sparse": counts[difficulty - 1] < FDR_SPARSE_MIN_SIDES,
+                "raw_shrunk_goal_rate": round(raw[difficulty - 1], 5),
+                "monotonic_goal_rate": round(fitted[difficulty - 1], 5),
+            }
+            for difficulty in range(1, 6)
+        }
+        for difficulty, value in enumerate(fitted, 1):
+            priors[(home, difficulty)] = value
+    diagnostics["sparse_buckets"] = sum(
+        bucket["sparse"]
+        for venue in diagnostics["venues"].values()
+        for bucket in venue.values()
+    )
+    diagnostics["total_market_team_sides"] = len(all_rates)
+    return priors, diagnostics
 
 
 def extend_horizon(payload: dict, bootstrap: dict, fixtures: list[dict], odds_payload: dict, horizon: int) -> None:
@@ -251,12 +393,13 @@ def extend_horizon(payload: dict, bootstrap: dict, fixtures: list[dict], odds_pa
     team_ids = {team["name"]: team["id"] for team in bootstrap["teams"]}
     team_names = {team["id"]: team["name"] for team in bootstrap["teams"]}
     attack_factor, defence_factor = recent_team_factors(list(team_names))
-    fdr_priors = fdr_goal_priors(odds_payload["fixtures"], fixtures)
+    fdr_priors, fdr_diagnostics = fdr_goal_priors(odds_payload["fixtures"], fixtures)
     payload["model_inputs"] = {
         "fdr_goal_priors": {
             f"{'home' if home else 'away'}_fdr{difficulty}": round(value, 5)
             for (home, difficulty), value in fdr_priors.items()
         },
+        "fdr_calibration": fdr_diagnostics,
         "recent_attack_factors": {
             team_names[team]: round(value, 5) for team, value in attack_factor.items()
         },
@@ -303,6 +446,8 @@ def extend_horizon(payload: dict, bootstrap: dict, fixtures: list[dict], odds_pa
                     )
                     fit_error = None
                     source = "fdr_recent_xg_fallback"
+                    team_bucket = fdr_diagnostics["venues"]["home" if home else "away"][f"fdr{difficulty}"]
+                    opponent_bucket = fdr_diagnostics["venues"]["away" if home else "home"][f"fdr{opponent_difficulty}"]
                 scale = team_lam / base_goal_lam
                 components = dict(record["components"])
                 components["goals"] = record["components"]["goals"] * scale
@@ -325,6 +470,13 @@ def extend_horizon(payload: dict, bootstrap: dict, fixtures: list[dict], odds_pa
                     "team_goal_lambda": round(team_lam, 3),
                     "opponent_goal_lambda": round(opponent_lam, 3),
                     "goal_model_fit_error": round(fit_error, 6) if fit_error is not None else None,
+                    **({
+                        "fdr_calibration": {
+                            "team": team_bucket,
+                            "opponent": opponent_bucket,
+                            "sparse": team_bucket["sparse"] or opponent_bucket["sparse"],
+                        }
+                    } if source == "fdr_recent_xg_fallback" else {}),
                     "components": {key: round(value, 3) for key, value in components.items()},
                     "xP": round(sum(components.values()), 3),
                 })
@@ -405,11 +557,16 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         if not mins or player["element_type"] == 1:
             continue
         position = types[player["element_type"]]
+        xg_rate, xg_audit = blended_per_90(
+            player, target_gw, priors[position], "expected_goals"
+        )
+        xa_rate, xa_audit = blended_per_90(
+            player, target_gw, priors[position], "expected_assists"
+        )
         weights[player["id"]] = {
-            "goal": attacking_rate(player, position, target_gw, priors[position], "xg")
-            * mins["exp_minutes"] / 90,
-            "assist": attacking_rate(player, position, target_gw, priors[position], "xa")
-            * mins["exp_minutes"] / 90,
+            "goal": xg_rate * mins["exp_minutes"] / 90,
+            "assist": xa_rate * mins["exp_minutes"] / 90,
+            "prior_audit": {"expected_goals": xg_audit, "expected_assists": xa_audit},
         }
 
     team_weight_totals = {}
@@ -452,7 +609,9 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         if position in {"GKP", "DEF"}:
             exposure_lam = opponent_lam * mins["exp_minutes"] / 90
             components["goals_conceded"] = -expected_goal_conceded_deduction(exposure_lam)
-        hist = historical_components(player, position, target_gw, priors[position], p_play, p_60)
+        hist = historical_components(
+            player, position, target_gw, priors[position], p_play, p_60, mins["exp_minutes"]
+        )
         components.update({key: hist[key] for key in ("yellow", "red", "defcon", "bonus", "saves")})
         rounded = {key: round(value, 3) for key, value in components.items()}
         records[str(player["id"])] = {
@@ -475,6 +634,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                 "shrunk_xa_per_90": round(assist_weight * 90 / mins["exp_minutes"], 4) if mins["exp_minutes"] else 0,
                 "team_goal_share": round(goal_share, 5),
                 "team_assist_share": round(assist_share, 5),
+                "prior_audit": weights.get(player["id"], {}).get("prior_audit"),
             },
             "team_goal_lambda": round(team_lam, 3),
             "opponent_goal_lambda": round(opponent_lam, 3),
@@ -486,6 +646,10 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "components": rounded,
             "xP": round(sum(components.values()), 3),
             "history_appearances": hist["history_appearances"],
+            "component_prior_audit": hist["prior_audit"],
+            "previous_season_actuals": previous_season_snapshot(
+                previous_season_for(player["id"])
+            ),
             "limitations": [
                 "bonus is shrunk current-season history",
                 "rare penalty/own-goal events not modeled",
@@ -502,14 +666,19 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "gw": target_gw,
             "players": len(records),
             "assisted_goal_rate": round(assisted_goal_rate, 4),
-            "attack_prior_minutes": ATTACK_PRIOR_MINUTES,
+            "player_prior_minutes": PLAYER_PRIOR_MINUTES,
+            "position_prior_minutes": POSITION_PRIOR_MINUTES,
+            "prior_policy": (
+                "latest official history_past rate shrunk 450 minutes toward position; "
+                "then weighted as 900 minutes against completed current-season evidence"
+            ),
+            "history_policy": "fixture finished or finished_provisional",
             "goal_model": "independent Poisson fitted to de-vigged 1X2 and O/U 2.5",
             "unmodeled": ["penalty saves", "penalty misses", "own goals"],
             "horizon": horizon,
             "horizon_discount": HORIZON_DISCOUNT,
             "form_prior_matches": FORM_PRIOR_MATCHES,
             "prior_strength": PRIOR_STRENGTH,
-            "rare_prior_strength": RARE_PRIOR_STRENGTH,
         },
         "priors": priors,
         "players": records,
@@ -519,6 +688,10 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
     assign_calibration_weights(payload, bootstrap)
     OUT.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote {OUT.relative_to(ROOT)} — {len(records)} players, GW{target_gw}")
+    sparse = payload["model_inputs"]["fdr_calibration"]["sparse_buckets"]
+    total_sides = payload["model_inputs"]["fdr_calibration"]["total_market_team_sides"]
+    if sparse:
+        print(f"  FDR fallback: {sparse}/10 sparse venue/FDR buckets from {total_sides} market team-sides")
     if show:
         ranked = sorted(records.values(), key=lambda row: -row["horizon_xP"])[:show]
         print(f"\n{'player':<18}{'pos':<5}{'opp':<18}{'mins':>6}{'GW+1':>7}{'horizon':>10}")

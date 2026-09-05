@@ -159,6 +159,80 @@ penalty duty changed. Dated snapshots are one line and unrecoverable retroactive
     the journal's chosen action and runner-up can later be audited against the candidates
     and prices that were actually available.
 
+12. **Cross-season hierarchical minutes training**, added 2026-09-05. The first proposed
+    peer-smoothed model was rejected before integration because, when tested only within
+    2025/26, it scored worse than the existing empirical baseline for established
+    contenders. The corrected experiment uses safely code-matched 2024/25 rows as
+    prehistory and predicts 2025/26 forward without future leakage. A small walk-forward
+    grid selected a three-GW half-life and only 0.5 effective position/price-peer rows,
+    evidence that role should update quickly and peer priors should mainly stabilize cold
+    starts rather than overpower player history. `models/minutes_params.json` tracks the
+    source hashes, complete grid, selected parameters, early/later and all/contender
+    metrics, probability calibration bins and explicit unfitted assumptions. Live rows
+    freeze their effective current, prior-season and peer weights. The old heuristic path
+    remains an automatic fallback when the historical cache is absent. The gain is
+    deliberately recorded as modest: versus the old empirical model on the comparable
+    later-GW contender slice, band log loss improved 0.7851 -> 0.7736 and Brier
+    0.4501 -> 0.4365, but minutes MAE worsened 25.65 -> 26.34. The combined selection
+    score moved only 1.0701 -> 1.0663. This is a better-calibrated early-history bridge,
+    not a claim that minutes are solved.
+
+    **GW4 model-input audit and fixes, 2026-09-05.** The live run found three material
+    issues before any recommendation was made:
+
+    - `element-summary` already contains all-zero rows for an unstarted current-GW
+      fixture. `minutes.py` and `projections.py` had accepted every row whose round was
+      before the target GW, so an unplayed Everton-Man Utd row was learned as a genuine
+      nonappearance for Barry and Mbeumo. History inputs must be joined to `fixtures.json`
+      and limited to completed (`finished_provisional` or `finished`) fixtures. Fixed in
+      both models through one shared filter; live/unfinished rows no longer count.
+    - The 180-minute attacking prior gives two-match outliers too much control over team
+      goals. Barry's 1.93 xG in 147 minutes became a 48% Everton goal share; De Cuyper's
+      one 1.47-xG match became a 22% Brighton share. Raising only this prior to 900 minutes
+      changed the best one-transfer move and cut the leading two-transfer gain from 15.62
+      to 9.46 xP. Fixed with a transparent prior-season blend: a player's latest official
+      season rate is shrunk 450 minutes toward position, then weighted as 900 minutes
+      against completed current evidence. These weights are starting assumptions, frozen
+      with raw inputs for walk-forward recalibration. Yellow/red/save rates use the same
+      blend; prior bonus and DefCon are excluded where the historical aggregates are not
+      comparable or cannot reconstruct the scoring threshold.
+    - The later-GW FDR fallback fits ten venue/difficulty buckets from only 36 currently
+      priced team-sides. Three buckets have no observations and the resulting rates are
+      not monotonic with difficulty. Five of the six horizon weeks use this fallback;
+      only 1.81 of Barry's reported 9.56 one-transfer gain came from bookmaker-backed
+      GW4. Store coverage counts and replace or constrain this fallback before using its
+      six-week differences as decision-grade evidence. Fixed by a weighted monotonic fit
+      for each venue. Coverage counts, pre-fit rates and sparse flags are now shown; the
+      live build currently labels 5/10 buckets sparse from 30 usable market team-sides.
+
+    These changes make the inputs inspectable; they do not turn the early-season ranking
+    into a recommendation. Rebuild after GW3 settles and use resolved archives to test
+    whether the explicit 900/450-minute starting weights should survive recalibration.
+
+## Future decision dashboard
+
+Once the command-line data contracts are stable, build a local/static HTML decision
+cockpit over their JSON artifacts before considering hosting, authentication or a new
+database. The dashboard is a presentation layer, not another source of truth. Its useful
+top-level views are:
+
+- **This gameweek:** deadline/state, the actual squad, price risks, avoidable lineup
+  problems, and the eventual recommendation with its runner-up and confidence.
+- **Expert evidence:** players discussed, transfers in/out, captaincy, chip strategy,
+  considerations and other themes from the gameweek-brief pipeline, with consensus,
+  dissent and polarizing views visible rather than flattened into one answer.
+- **Model evidence:** hold and legal transfer-count alternatives, Free Hit/Wildcard teams,
+  weekly XI/captain choices, source coverage, component explanations and uncertainty.
+- **History and calibration:** actual points/minutes/components, frozen predictions,
+  decision outcomes and lead-specific error for the decision-relevant population.
+
+Avoid an information dump: lead with the decision and the few facts capable of changing
+it, then progressively disclose components, raw claims and historical rows. Visually and
+semantically distinguish official facts, creator claims, model estimates and realized
+outcomes; always show source timestamps and the hard pre-deadline cutoff. Do not build
+the dashboard until the underlying unfinished-fixture, attacking-prior and later-fixture
+fallback issues above are resolved, or it will make fragile numbers look authoritative.
+
 **Recalibration policy:** evaluate a candidate calibration every settled gameweek over
 the most recent six archived forecast weeks, with results separated by forecast lead.
 Do not automatically replace the active parameters after one week; promote a change only
@@ -453,18 +527,16 @@ itself (the diff and the alert) is still open; there's only one day of history s
   horizon discount: that one prices *future* gameweeks, this one weights *past*
   observations. Different questions that happen to share a shape.
 
-- **Prior-season per-gameweek history (the vaastav backfill).** The FPL API gives
+- **Prior-season per-gameweek history (the vaastav backfill) — BUILT 2026-09-05.** The FPL API gives
   per-gameweek rows for the current season only; earlier seasons are aggregates in
   `history_past` (minutes and starts totals, no per-match rows). So in August the minutes
   model has nothing to work from and everything falls back to price. Fixing it means
   wiring in vaastav's dataset — already verified for the backtest split: `data/2025-26/
   gws/merged_gw.csv`, 29,757 rows, GW1-38, all DefCon columns.
 
-  **Not urgent this season** — the gap closes on its own by about GW5 as real rows
-  accumulate, and it's now GW3. It matters at the *start of next season*, when the model
-  would otherwise open blind again. That's the natural deadline for doing it.
+  This is now wired into the trained minutes model rather than postponed to next season.
 
-  One wrinkle to know before starting: **FPL reassigns element IDs every season**, so
+  The crucial join rule is preserved: **FPL reassigns element IDs every season**, so
   joining last season's rows to this season's players goes through `element_code`, which
   is stable and which `history_past` exposes. Joining on `element` would silently match
   the wrong players.

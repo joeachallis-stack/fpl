@@ -109,10 +109,12 @@ scripts/
   roster.py           — canonical player-name resolution; the authority on identity
   claims.py           — check what a transcript claims against what the data records,
                         plus which gameweek a video is actually about
-  minutes.py          — empirical minutes model: per-player distribution over next GW's
-                        minutes. Role buckets in, scoring-aligned bands out (p_zero /
-                        p_1_59 / p_60_plus, around the 60-minute appearance cliff).
+  minutes.py          — trained hierarchical minutes model: current and prior-season
+                        role history plus position/price peers produce scoring-aligned
+                        bands (p_zero / p_1_59 / p_60_plus).
                         `archive` freezes a GW's predictions, `resolve` scores them
+  train_minutes.py    — walk-forward fit of recency and peer-prior strength; writes the
+                        small tracked parameter artifact under models/
   odds.py             — fetch near-term EPL odds; remove bookmaker margin and aggregate
                         fair 1X2 and over/under 2.5 probabilities across UK bookmakers
   observations.py     — append finalized player-fixture facts once, revisioning any
@@ -150,6 +152,8 @@ projections/
 decisions/
   gwNN.json           — frozen hold/transfer/chip search, including point-in-time prices,
                         legal weekly lineups and the alternatives shown to Joe
+models/
+  minutes_params.json — fitted parameters, source hashes, calibration and peer priors
 news/
   findings/gwNN_*.jsonl — structured claims extracted from transcripts, one file per
                         extraction batch. Git-tracked: reading a transcript is the
@@ -171,6 +175,7 @@ docs/
 ## Setup
 ```bash
 pip install -r requirements.txt
+python scripts/train_minutes.py --fetch  # one-time historical cache + reproducible refit
 python scripts/fetch_data.py
 python scripts/show_team.py
 ```

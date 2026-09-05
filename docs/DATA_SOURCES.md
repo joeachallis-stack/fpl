@@ -260,6 +260,40 @@ assist count. Card and red-card markets may overlap (a red can follow a booking)
 must not be subtracted independently without a market-definition or historical
 calibration that prevents double counting.
 
+### Historical minutes training — built 2026-09-05
+
+`scripts/train_minutes.py --fetch` retrieves vaastav's public `merged_gw.csv` and
+`players_raw.csv` for 2024/25 and 2025/26 into gitignored `data/`. The gameweek rows use
+season-specific element IDs, so the join is strictly `element -> players_raw.code ->
+current elements[].code`; names are never identity keys. Source URLs and SHA-256 hashes
+are frozen in `models/minutes_params.json`.
+
+Training predicts every 2025/26 gameweek using only older rows, with 2024/25 as the
+cross-season prehistory. It searches a deliberately small grid over recency half-life
+and position/price peer-prior strength. Model selection uses log loss plus minutes MAE
+scaled to 90 on the pre-deadline-reproducible contender population: players averaging at
+least 30 minutes over their prior three matches. All-player, early-GW and later-GW
+diagnostics plus probability calibration bins remain in the artifact. The selected v1
+fit uses a three-GW half-life and half an effective peer observation. Club-change
+retention (0.5) and a four-GW offseason gap remain labeled assumptions because two
+seasons cannot fit them reliably.
+
+On the comparable GW6-38 contender slice, the trained model improved band log loss
+from 0.7851 to 0.7736 and Brier score from 0.4501 to 0.4365, while minutes MAE worsened
+from 25.65 to 26.34. Its combined selection score improved only from 1.0701 to 1.0663:
+useful but modest, not evidence that minutes are solved. Across all contender folds,
+expected calibration error is 0.0395 for nonappearance and 0.0335 for 60-plus. The full
+bins remain in the artifact so tail miscalibration is visible rather than summarized
+away.
+
+At runtime `minutes.py` combines completed current-season rows, safely code-matched
+prior-season rows, and the peer prior. It falls back to the older empirical rules if the
+historical cache or model artifact is missing. Injury/suspension overrides remain a
+separate layer. Each prediction freezes the source hash, stable code, selected parameters
+and effective current/prior/peer weights; the probabilities are fitted scenario weights,
+not claims of certainty. Each live minutes ledger also freezes the parameter artifact's
+SHA-256, so a later retrain cannot silently change what an archived forecast meant.
+
 ### Expected-points and evaluation infrastructure — built 2026-09-04
 
 `scripts/observations.py` appends finalized, data-checked player-fixture rows to
@@ -276,18 +310,26 @@ component sum instead of returning an unexplained score:
 - appearance points from the minutes model's scoring-aligned bands;
 - team goal rates from an independent-Poisson model fitted to the de-vigged 1X2 and
   over/under 2.5 probabilities, with numerical fit error retained;
-- player goal/assist shares from official per-match xG/xA, shrunk by 180 minutes toward
-  the live position average before allocation to avoid two hot matches dominating;
+- player goal/assist shares from official per-match xG/xA. Only completed fixtures count.
+  Current-season rates are blended against a 900-minute prior built from the player's
+  latest official `history_past` season, itself shrunk 450 minutes toward the live
+  positional rate. These are explicit starting assumptions to recalibrate, not fitted
+  truth; every raw season total, weight and resulting rate is frozen in the archive;
 - clean-sheet and goals-conceded expectation from the inferred opponent goal rate;
-- yellow, red, DefCon, save and bonus components from current-season match history,
-  shrunk toward live position priors, with each player's sample size retained.
+- yellow, red and save components use the same auditable prior-season blend. DefCon stays
+  current-season/position based because a season aggregate cannot recover per-match
+  threshold hits. Prior-season bonus is deliberately excluded because the 2026/27 BPS
+  changes make it directionally non-comparable; each player's sample size is retained.
 
 The model reads point weights from `bootstrap.game_config.scoring`, refuses to publish a
 ranking unless all ten next-gameweek fixtures have usable odds, and records bookmaker
 counts plus known limitations on every player. Exact odds supply fixtures where present;
 later fixtures use venue/FDR goal-rate buckets calibrated from the live odds sample,
 adjusted by recent team xG attack/defence factors shrunk five matches toward league
-average. Every horizon row labels its source. It does not yet model penalty saves,
+average. The five rates for each venue are constrained to be monotonic, so a harder FDR
+cannot imply a higher base scoring rate. Market team-side counts, raw and fitted rates,
+and a sparse flag for buckets with fewer than three observations are retained globally
+and on every fallback fixture. Every horizon row labels its source. It does not yet model penalty saves,
 penalty misses or own goals, and does not ingest player props until those prices can be
 calibrated without mislabeling margined inverse odds as fair probabilities. Bonus is a
 shrunk empirical expectation, not a reconstruction of the interdependent BPS contest;
