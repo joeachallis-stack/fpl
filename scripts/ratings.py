@@ -55,6 +55,30 @@ DEFAULT_PRIOR_STRENGTH = 8.0
 PROMOTED_ATTACK_PRIOR = math.log(0.82)
 PROMOTED_DEFENCE_PRIOR = -math.log(1.14)
 
+# How many matches of history one bookmaker-priced fixture is worth when learning team
+# strength. NOT FITTED — historical odds do not exist, so this cannot yet be selected
+# against real market lines. It is set instead from the bracket in train_ratings.py, and
+# the bracket is the important part: the sign of this feature depends on how noisy the
+# anchor is.
+#
+#   - Anchored on realized xG (one draw from lambda, so noisier than a real price),
+#     anchoring HURTS and worsens with weight: t = -0.05 at weight 2, +1.78 at 6,
+#     +5.18 at 20. Injecting single-match noise into a rating built on 20+ matches is
+#     actively damaging.
+#   - Anchored on a full-season model lambda (pure team strength, no fixture noise, no
+#     market achieves this), anchoring HELPS at every weight: t = -5.98, -6.11, -6.32.
+#
+# A real bookmaker line sits between those two, and nothing in the cached data says
+# where. Weight 2 is chosen as the largest value that is still non-harmful under the
+# pessimistic bound, so the feature cannot cost anything much while it is unproven.
+#
+# Note the ceiling is small either way. The best case is ~0.003 NLL, against the 0.023
+# already banked by replacing the FDR fallback with ratings at all. This is a refinement,
+# not another step change — do not spend heavily on it.
+#
+# odds/ is now accumulating the archive needed to fit this against real prices.
+ODDS_MATCH_EQUIVALENT = 2.0
+
 
 def decayed_weight(kickoff: datetime, asof: datetime, half_life_days: float) -> float:
     age_days = max((asof - kickoff).total_seconds() / 86400, 0.0)
@@ -108,16 +132,30 @@ def fit(
     prior_strength: float = DEFAULT_PRIOR_STRENGTH,
     target: str = "goals",
     promoted: set[str] | None = None,
+    odds_rows: list[dict] | None = None,
+    odds_weight: float = ODDS_MATCH_EQUIVALENT,
 ) -> dict:
     """Weighted Poisson MLE for attack, defence, home advantage and a base rate.
 
     `target` selects goals or team xG. xG carries less noise per match but is itself a
     model output; which one predicts better is left to walk-forward selection.
+
+    `odds_rows` anchors the fit to the market. Each priced fixture contributes two
+    observations whose "goals" is the bookmaker-implied lambda, carrying `odds_weight`
+    matches of weight. Because ratings are per team rather than per fixture, a price on
+    one fixture moves that team's rating and therefore every other fixture it plays —
+    which is the entire point. It is how the market's one-week-ahead view of a side,
+    including a managerial change the results have not caught up with, reaches a fixture
+    five weeks out that nobody prices.
+
+    Only fixtures at or after `asof` are anchored: a priced fixture already played has a
+    result, and the result is the better observation.
     """
     rows = [row for row in rows if row["kickoff"] <= asof]
     if not rows:
         raise ValueError("no matches on or before asof")
     teams = sorted({row["team"] for row in rows} | {row["opponent"] for row in rows})
+    teams = list(teams)
     index = {team: position for position, team in enumerate(teams)}
     n_teams = len(teams)
     promoted = promoted or set()
@@ -129,11 +167,33 @@ def fit(
         [PROMOTED_DEFENCE_PRIOR if team in promoted else 0.0 for team in teams]
     )
 
-    team_ix = np.array([index[row["team"]] for row in rows])
-    opp_ix = np.array([index[row["opponent"]] for row in rows])
-    is_home = np.array([1.0 if row["home"] else 0.0 for row in rows])
-    observed = np.array([float(row["goals" if target == "goals" else "xg"]) for row in rows])
-    weights = np.array([decayed_weight(row["kickoff"], asof, half_life_days) for row in rows])
+    anchors = [row for row in (odds_rows or []) if row["kickoff"] >= asof] if odds_weight else []
+    for anchor in anchors:
+        for team in (anchor["team"], anchor["opponent"]):
+            if team not in index:
+                index[team] = len(teams)
+                teams.append(team)
+    n_teams = len(teams)
+    if len(attack_prior) != n_teams:
+        attack_prior = np.array(
+            [PROMOTED_ATTACK_PRIOR if team in promoted else 0.0 for team in teams]
+        )
+        defence_prior = np.array(
+            [PROMOTED_DEFENCE_PRIOR if team in promoted else 0.0 for team in teams]
+        )
+
+    observations = rows + anchors
+    team_ix = np.array([index[row["team"]] for row in observations])
+    opp_ix = np.array([index[row["opponent"]] for row in observations])
+    is_home = np.array([1.0 if row["home"] else 0.0 for row in observations])
+    observed = np.array(
+        [float(row["goals" if target == "goals" else "xg"]) for row in rows]
+        + [float(row["lambda"]) for row in anchors]
+    )
+    weights = np.array(
+        [decayed_weight(row["kickoff"], asof, half_life_days) for row in rows]
+        + [odds_weight] * len(anchors)
+    )
 
     def unpack(params: np.ndarray):
         return params[0], params[1], params[2:2 + n_teams], params[2 + n_teams:]
@@ -166,7 +226,7 @@ def fit(
     # than an established one, and that difference should be visible downstream rather
     # than hidden behind a rating that looks as firm as Arsenal's.
     effective_by_team = {team: 0.0 for team in teams}
-    for row, weight in zip(rows, weights):
+    for row, weight in zip(rows, weights[:len(rows)]):
         effective_by_team[row["team"]] += float(weight)
 
     start = np.concatenate([[math.log(max(observed.mean(), 0.1)), 0.1], attack_prior, defence_prior])
@@ -183,6 +243,8 @@ def fit(
         "half_life_days": half_life_days,
         "prior_strength": prior_strength,
         "matches": len(rows),
+        "anchored_fixtures": len(anchors),
+        "odds_weight": float(odds_weight) if anchors else 0.0,
         "effective_matches": float(weights.sum()),
         "effective_matches_by_team": effective_by_team,
         "promoted": sorted(promoted),

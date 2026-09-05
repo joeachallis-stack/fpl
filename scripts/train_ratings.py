@@ -329,6 +329,139 @@ def promoted_prior_ablation(
     }
 
 
+def paired_stats(values: list[float]) -> dict:
+    if len(values) < 2:
+        return {"n": len(values), "mean_delta_nll": None, "se": None, "t": None}
+    mean = statistics.mean(values)
+    se = statistics.stdev(values) / math.sqrt(len(values))
+    return {"n": len(values), "mean_delta_nll": round(mean, 5),
+            "se": round(se, 5), "t": round(mean / se, 2) if se else None}
+
+
+def _staleness_quartiles(pairs: list[tuple[float, float]], stats) -> dict | None:
+    """Anchor benefit split by how far the rating had drifted from the oracle."""
+    if len(pairs) < 8:
+        return None
+    ordered = sorted(pairs, key=lambda pair: pair[0])
+    size = len(ordered) // 4
+    labels = ("q1_least_stale", "q2", "q3", "q4_most_stale")
+    out = {}
+    for position, label in enumerate(labels):
+        chunk = ordered[position * size:(position + 1) * size] if position < 3 else ordered[3 * size:]
+        out[label] = stats([delta for _, delta in chunk])
+    return out
+
+
+def anchor_upper_bound(
+    prehistory: list[dict], season: list[dict], half_life: float,
+    prior_strength: float, target: str, weights: tuple[float, ...],
+    oracle: str = "realized_xg",
+) -> dict:
+    """The most that odds anchoring could ever buy, measured with deliberate oracles.
+
+    Historical bookmaker odds do not exist, so the real anchor cannot be validated. What
+    can be bounded is the mechanism, and a real market sits between two oracles:
+
+    - `realized_xg` anchors on the upcoming round's actual team xG. That is one draw from
+      the fixture's lambda, so it carries single-match sampling noise a bookmaker's
+      estimate of the mean does not. Pessimistic bound.
+    - `full_season_model` anchors on lambda from a ratings model fitted to the entire
+      season. That is pure team strength with no fixture noise at all, which no market
+      achieves either. Optimistic bound, and generous enough to be near-circular.
+
+    Both LEAK BY CONSTRUCTION and neither is evidence that anchoring works. Together they
+    bracket it. Leads 2-6 only: lead 1 is priced directly by the oracle and would win
+    trivially without saying anything about transfer to unpriced fixtures.
+    """
+    rounds = cutoffs_for(season)
+    by_round: dict[int, list[dict]] = defaultdict(list)
+    for row in season:
+        by_round[row["round"]].append(row)
+    promoted = {row["team"] for row in season} - {row["team"] for row in prehistory}
+
+    paired: dict[float, dict[int, list[float]]] = {
+        weight: defaultdict(list) for weight in weights
+    }
+    # (staleness, delta) for the largest weight, to test whether the anchor earns its
+    # keep precisely where a rating has gone stale — the managerial-change case.
+    staleness_pairs: list[tuple[float, float]] = []
+    full_season = None
+    if oracle == "full_season_model":
+        everything = prehistory + season
+        full_season = ratings.fit(
+            everything, max(row["kickoff"] for row in everything),
+            half_life, prior_strength, target, promoted,
+        )
+    for cutoff_round in sorted(rounds):
+        cutoff = rounds[cutoff_round]
+        history = [row for row in prehistory + season if row["kickoff"] < cutoff]
+        if not history:
+            continue
+        upcoming = by_round.get(cutoff_round, [])
+        if not upcoming:
+            continue
+        anchors = []
+        for row in upcoming:
+            if full_season is not None:
+                home_team = row["team"] if row["home"] else row["opponent"]
+                away_team = row["opponent"] if row["home"] else row["team"]
+                lam = ratings.expected_goals(full_season, home_team, away_team)[
+                    0 if row["home"] else 1]
+            else:
+                lam = max(row["xg"], 0.05)
+            anchors.append({"team": row["team"], "opponent": row["opponent"],
+                            "home": row["home"], "lambda": lam,
+                            "kickoff": row["kickoff"]})
+        base = ratings.fit(history, cutoff, half_life, prior_strength, target, promoted)
+        stale = {}
+        if full_season is not None:
+            stale = {
+                team: (abs(full_season["attack"].get(team, 0.0) - base["attack"].get(team, 0.0))
+                       + abs(full_season["defence"].get(team, 0.0) - base["defence"].get(team, 0.0)))
+                for team in base["teams"]
+            }
+        for weight in weights:
+            anchored = ratings.fit(
+                history, cutoff, half_life, prior_strength, target, promoted,
+                odds_rows=anchors, odds_weight=weight,
+            )
+            for lead in range(2, MAX_LEAD + 1):
+                for row in by_round.get(cutoff_round + lead - 1, []):
+                    home_team = row["team"] if row["home"] else row["opponent"]
+                    away_team = row["opponent"] if row["home"] else row["team"]
+                    side = 0 if row["home"] else 1
+                    delta = (
+                        poisson_nll(
+                            ratings.expected_goals(anchored, home_team, away_team)[side],
+                            row["goals"])
+                        - poisson_nll(
+                            ratings.expected_goals(base, home_team, away_team)[side],
+                            row["goals"])
+                    )
+                    paired[weight][lead].append(delta)
+                    if stale and weight == max(weights):
+                        staleness_pairs.append((stale.get(row["team"], 0.0), delta))
+
+    return {
+        "oracle": oracle,
+        "question": "oracle-anchored minus unanchored; negative means anchoring helps",
+        "leakage_warning": (
+            "leaks by construction; brackets the mechanism and is NOT validation of the "
+            "real odds anchor"
+        ),
+        "scored_leads": "2-6 only; lead 1 is priced directly by the oracle",
+        "by_staleness_quartile": _staleness_quartiles(staleness_pairs, paired_stats),
+        "by_weight": {
+            f"{weight:g}": {
+                "pooled": paired_stats([v for lead in paired[weight] for v in paired[weight][lead]]),
+                "by_lead": {str(lead): paired_stats(paired[weight][lead])
+                            for lead in sorted(paired[weight])},
+            }
+            for weight in weights
+        },
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quick", action="store_true", help="every third cutoff round")
@@ -378,6 +511,22 @@ def main() -> None:
     print(f"{'pooled':>10s} {pooled['n']:5d} {pooled['mean_delta_nll']:+10.5f} "
           f"{pooled['se']:9.5f} {pooled['t']:+7.2f}")
 
+    bounds = {
+        name: anchor_upper_bound(
+            prehistory, season, best["half_life_days"], best["prior_strength"],
+            best["target"], weights=(2.0, 6.0, 20.0), oracle=name,
+        )
+        for name in ("realized_xg", "full_season_model")
+    }
+    print("\nanchoring bracket (both LEAK; negative favours anchoring; leads 2-6 only)")
+    print(f"{'oracle':>18s} {'weight':>8s} {'n':>6s} {'mean d':>10s} {'SE':>9s} {'t':>7s}")
+    for name, bound in bounds.items():
+        for label, row in bound["by_weight"].items():
+            pooled = row["pooled"]
+            print(f"{name:>18s} {label:>8s} {pooled['n']:6d} "
+                  f"{pooled['mean_delta_nll']:+10.5f} {pooled['se']:9.5f} "
+                  f"{pooled['t']:+7.2f}")
+
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -388,6 +537,7 @@ def main() -> None:
         "selected": {"name": best_name, **{k: v for k, v in best.items() if k != "by_lead"},
                      "by_lead": best["by_lead"]},
         "promoted_prior_ablation": ablation,
+        "anchor_bracket": bounds,
         "incumbent_note": (
             "FDR replicated in production form with difficulty proxied by rolling goal-"
             "difference tiers and buckets calibrated on actual goals, both of which "

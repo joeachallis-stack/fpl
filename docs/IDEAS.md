@@ -420,15 +420,58 @@ next several gameweeks and reaching parity around GW20. `ratings.fit` now return
 `effective_matches_by_team` so thin evidence is visible downstream rather than hidden
 behind a rating that reads as firmly as Arsenal's.
 
-**Not yet adopted.** Two pieces remain before this can replace the fallback in
-`projections.py`:
+#### Odds anchoring — built and bracketed 2026-09-05, deliberately left near-off
 
-1. A current-season team-match loader. The walk-forward runs off the two cached CSVs;
-   live 2026/27 rows have to come from the observation ledger.
-2. Odds anchoring. Where odds exist they should set the ratings rather than merely
-   coexist with them, so that the market's one-week-ahead view of a team propagates to
-   that team's unpriced fixtures five weeks out. This is the mechanism that answers
-   regime change, and it is untested.
+Priced fixtures now enter the fit as weighted observations: `ratings.fit(odds_rows=...,
+odds_weight=...)`, where the observation is the bookmaker-implied lambda carrying
+`ODDS_MATCH_EQUIVALENT` matches of weight. Because ratings are per team, a price on one
+fixture moves that team's rating and therefore every other fixture it plays. Mechanism
+verified directly: weight 0 reproduces the unanchored fit exactly, weight to infinity
+recovers the market lambda on the priced fixture (3.196 against a 3.200 target), and a
+Chelsea price moves Chelsea's lambda in a *different, unpriced* fixture against Spurs
+from 1.776 to 1.925, with Everton's defence updating from appearing only as an opponent.
+
+Validation is impossible for now — historical odds do not exist — so `train_ratings.py`
+brackets the mechanism with two leaking oracles instead. **The bracket is the finding:
+the sign of this feature depends entirely on how noisy the anchor is.**
+
+| oracle | weight 2 | weight 6 | weight 20 |
+|---|---|---|---|
+| realized xG (one draw from lambda; noisier than a price) | t = -0.05 | +1.78 | **+5.18** |
+| full-season model lambda (pure team strength; no market is this clean) | **t = -5.98** | -6.11 | -6.32 |
+
+Negative favours anchoring, leads 2-6 only. Anchoring on a *noisy* estimate is actively
+harmful and gets worse with weight — injecting one match of noise into a rating built on
+20-plus matches damages it. Anchoring on clean team strength helps at every weight. A real
+bookmaker line sits between the two and nothing cached says where.
+
+`ODDS_MATCH_EQUIVALENT` is therefore set to **2.0**, the largest weight still non-harmful
+under the pessimistic bound. This is not a fitted value and must not be raised until it
+can be fitted against real archived prices, which `odds/` began accumulating the same day.
+
+The managerial-change hypothesis holds, and is the best argument for the feature. Splitting
+the clean-oracle result by how far a rating had drifted from the oracle:
+
+| staleness quartile | n | mean delta NLL | t |
+|---|---|---|---|
+| Q1 least stale | 875 | -0.00154 | -2.03 |
+| Q2 | 875 | -0.00289 | -4.10 |
+| Q3 | 875 | -0.00286 | -4.15 |
+| Q4 most stale | 875 | -0.00487 | -3.32 |
+
+The anchor earns roughly 3x more where the rating had gone stale, which is exactly the
+Chelsea case — a side whose results have not caught up with what it now is. That is the
+mechanism working as designed.
+
+**But keep the ceiling in view.** The best case here is ~0.003-0.005 NLL, against the
+0.023 already banked by replacing the FDR fallback with ratings at all. Anchoring is a
+refinement worth roughly an eighth of the change it refines. It should not absorb more
+effort until real prices can fit its weight.
+
+**Not yet adopted.** One piece remains before ratings can replace the fallback in
+`projections.py`: a current-season team-match loader, since the walk-forward runs off the
+two cached CSVs and live 2026/27 rows have to come from the observation ledger. Adoption
+must then be re-judged on decision-weighted player forecasts, not on team goals.
 
 Also note the scope of what was measured: this improves **team goals**, an input. The
 adoption rule in this document is improvement in decision-weighted player forecasts.

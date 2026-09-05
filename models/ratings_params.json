@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-05T21:52:40+00:00",
+  "generated_at": "2026-09-05T22:01:52+00:00",
   "model": "team-ratings-v1",
   "eval_season": "2025-26",
   "prehistory_season": "2024-25",
@@ -101,6 +101,291 @@
       "t": 0.8
     },
     "verdict": "not evidence-selected: no bucket reaches |t| = 2 and the sign flips between buckets. Retained on a priori grounds only, because at zero history the alternative is to call a promoted side exactly league average. The prior's influence is fully gone by 20+ matches, which is the convergence claim."
+  },
+  "anchor_bracket": {
+    "realized_xg": {
+      "oracle": "realized_xg",
+      "question": "oracle-anchored minus unanchored; negative means anchoring helps",
+      "leakage_warning": "leaks by construction; brackets the mechanism and is NOT validation of the real odds anchor",
+      "scored_leads": "2-6 only; lead 1 is priced directly by the oracle",
+      "by_staleness_quartile": null,
+      "by_weight": {
+        "2": {
+          "pooled": {
+            "n": 3500,
+            "mean_delta_nll": -3e-05,
+            "se": 0.00059,
+            "t": -0.05
+          },
+          "by_lead": {
+            "2": {
+              "n": 740,
+              "mean_delta_nll": 0.00092,
+              "se": 0.00122,
+              "t": 0.76
+            },
+            "3": {
+              "n": 720,
+              "mean_delta_nll": -9e-05,
+              "se": 0.00129,
+              "t": -0.07
+            },
+            "4": {
+              "n": 700,
+              "mean_delta_nll": -0.00105,
+              "se": 0.00142,
+              "t": -0.74
+            },
+            "5": {
+              "n": 680,
+              "mean_delta_nll": 0.00025,
+              "se": 0.00124,
+              "t": 0.2
+            },
+            "6": {
+              "n": 660,
+              "mean_delta_nll": -0.00022,
+              "se": 0.00141,
+              "t": -0.16
+            }
+          }
+        },
+        "6": {
+          "pooled": {
+            "n": 3500,
+            "mean_delta_nll": 0.00256,
+            "se": 0.00144,
+            "t": 1.78
+          },
+          "by_lead": {
+            "2": {
+              "n": 740,
+              "mean_delta_nll": 0.00423,
+              "se": 0.00299,
+              "t": 1.41
+            },
+            "3": {
+              "n": 720,
+              "mean_delta_nll": 0.00265,
+              "se": 0.0032,
+              "t": 0.83
+            },
+            "4": {
+              "n": 700,
+              "mean_delta_nll": 0.00027,
+              "se": 0.00332,
+              "t": 0.08
+            },
+            "5": {
+              "n": 680,
+              "mean_delta_nll": 0.00338,
+              "se": 0.00312,
+              "t": 1.08
+            },
+            "6": {
+              "n": 660,
+              "mean_delta_nll": 0.00216,
+              "se": 0.0035,
+              "t": 0.62
+            }
+          }
+        },
+        "20": {
+          "pooled": {
+            "n": 3500,
+            "mean_delta_nll": 0.01603,
+            "se": 0.00309,
+            "t": 5.18
+          },
+          "by_lead": {
+            "2": {
+              "n": 740,
+              "mean_delta_nll": 0.01766,
+              "se": 0.00636,
+              "t": 2.78
+            },
+            "3": {
+              "n": 720,
+              "mean_delta_nll": 0.01712,
+              "se": 0.00695,
+              "t": 2.46
+            },
+            "4": {
+              "n": 700,
+              "mean_delta_nll": 0.01134,
+              "se": 0.00681,
+              "t": 1.67
+            },
+            "5": {
+              "n": 680,
+              "mean_delta_nll": 0.01868,
+              "se": 0.00691,
+              "t": 2.71
+            },
+            "6": {
+              "n": 660,
+              "mean_delta_nll": 0.01524,
+              "se": 0.00764,
+              "t": 1.99
+            }
+          }
+        }
+      }
+    },
+    "full_season_model": {
+      "oracle": "full_season_model",
+      "question": "oracle-anchored minus unanchored; negative means anchoring helps",
+      "leakage_warning": "leaks by construction; brackets the mechanism and is NOT validation of the real odds anchor",
+      "scored_leads": "2-6 only; lead 1 is priced directly by the oracle",
+      "by_staleness_quartile": {
+        "q1_least_stale": {
+          "n": 875,
+          "mean_delta_nll": -0.00154,
+          "se": 0.00076,
+          "t": -2.03
+        },
+        "q2": {
+          "n": 875,
+          "mean_delta_nll": -0.00289,
+          "se": 0.0007,
+          "t": -4.1
+        },
+        "q3": {
+          "n": 875,
+          "mean_delta_nll": -0.00286,
+          "se": 0.00069,
+          "t": -4.15
+        },
+        "q4_most_stale": {
+          "n": 875,
+          "mean_delta_nll": -0.00487,
+          "se": 0.00147,
+          "t": -3.32
+        }
+      },
+      "by_weight": {
+        "2": {
+          "pooled": {
+            "n": 3500,
+            "mean_delta_nll": -0.00064,
+            "se": 0.00011,
+            "t": -5.98
+          },
+          "by_lead": {
+            "2": {
+              "n": 740,
+              "mean_delta_nll": -0.00029,
+              "se": 0.0002,
+              "t": -1.49
+            },
+            "3": {
+              "n": 720,
+              "mean_delta_nll": -0.00053,
+              "se": 0.00024,
+              "t": -2.2
+            },
+            "4": {
+              "n": 700,
+              "mean_delta_nll": -0.00069,
+              "se": 0.00028,
+              "t": -2.43
+            },
+            "5": {
+              "n": 680,
+              "mean_delta_nll": -0.00092,
+              "se": 0.00021,
+              "t": -4.39
+            },
+            "6": {
+              "n": 660,
+              "mean_delta_nll": -0.00083,
+              "se": 0.00027,
+              "t": -3.09
+            }
+          }
+        },
+        "6": {
+          "pooled": {
+            "n": 3500,
+            "mean_delta_nll": -0.00153,
+            "se": 0.00025,
+            "t": -6.11
+          },
+          "by_lead": {
+            "2": {
+              "n": 740,
+              "mean_delta_nll": -0.00078,
+              "se": 0.00046,
+              "t": -1.69
+            },
+            "3": {
+              "n": 720,
+              "mean_delta_nll": -0.0013,
+              "se": 0.00056,
+              "t": -2.31
+            },
+            "4": {
+              "n": 700,
+              "mean_delta_nll": -0.00154,
+              "se": 0.00063,
+              "t": -2.44
+            },
+            "5": {
+              "n": 680,
+              "mean_delta_nll": -0.00215,
+              "se": 0.0005,
+              "t": -4.29
+            },
+            "6": {
+              "n": 660,
+              "mean_delta_nll": -0.00195,
+              "se": 0.00063,
+              "t": -3.11
+            }
+          }
+        },
+        "20": {
+          "pooled": {
+            "n": 3500,
+            "mean_delta_nll": -0.00304,
+            "se": 0.00048,
+            "t": -6.32
+          },
+          "by_lead": {
+            "2": {
+              "n": 740,
+              "mean_delta_nll": -0.00184,
+              "se": 0.00092,
+              "t": -2.0
+            },
+            "3": {
+              "n": 720,
+              "mean_delta_nll": -0.00273,
+              "se": 0.00109,
+              "t": -2.5
+            },
+            "4": {
+              "n": 700,
+              "mean_delta_nll": -0.0028,
+              "se": 0.00116,
+              "t": -2.41
+            },
+            "5": {
+              "n": 680,
+              "mean_delta_nll": -0.00416,
+              "se": 0.00101,
+              "t": -4.14
+            },
+            "6": {
+              "n": 660,
+              "mean_delta_nll": -0.00384,
+              "se": 0.00121,
+              "t": -3.17
+            }
+          }
+        }
+      }
+    }
   },
   "incumbent_note": "FDR replicated in production form with difficulty proxied by rolling goal-difference tiers and buckets calibrated on actual goals, both of which favour the incumbent over the live static-FDR, odds-calibrated version",
   "baselines": {
