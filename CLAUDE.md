@@ -100,6 +100,10 @@ scripts/
   fetch_news.py       — pull free FPL-adjacent RSS feeds, append new items to
                         news/entries.jsonl; runs automatically from fetch_data.py
   state.py            — derived state: banked free transfers, chip windows, next deadline
+  freeze.py           — the scheduled measurement cadence: freezes minutes/projections/
+                        decisions before a deadline, resolves and re-evaluates after a
+                        gameweek settles. Runs hourly under launchd and almost always
+                        does nothing; `--status` reports both sides
   check_team.py       — pre-deadline checklist (legal XI, flags, captaincy, blanks, bench)
   journal.py          — decision journal: log recommendations, resolve realized outcomes
   prepare_extraction.py — pick which transcripts still need reading, batch them, and

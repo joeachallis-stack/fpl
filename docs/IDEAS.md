@@ -81,6 +81,16 @@ refuses — `projections.py` declines a partial gameweek of odds — does not bl
 others, and the next run retries. launchd fires a missed `StartInterval` job when the
 machine next wakes, so a sleeping laptop catches up rather than losing the gameweek.
 
+**Resolving is automated too, added 2026-09-05.** Automating only the freeze reproduces
+the failure this project already had: a pile of perfect frozen forecasts that nothing ever
+scores. The same hourly job now also resolves every finalized gameweek whose minutes,
+projections or journal record is still unresolved, then refreshes `data/evaluation.json`.
+The two phases have opposite timing constraints — the freeze can never be redone and the
+resolve can never be early — so resolving runs on every pass regardless of the freeze
+window, and is safe to repeat. Detection is per record (`actual_minutes` populated,
+`actual_points` present, `resolved_at` set) rather than a separate state file, so there is
+nothing to drift out of sync.
+
 Consequences accepted deliberately:
 
 - First success wins, so a freeze at T-11h locks in staler team news than T-2h. A

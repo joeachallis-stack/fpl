@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Hourly pre-deadline freeze. Tracked here so the schedule is auditable and can be
-  reinstalled; the live copy lives in ~/Library/LaunchAgents/.
+  Hourly measurement cadence: freeze before a deadline, resolve after a gameweek settles.
+  Tracked here so the schedule is auditable and can be reinstalled; the live copy lives in
+  ~/Library/LaunchAgents/.
 
   StartInterval rather than StartCalendarInterval because the fixture calendar is
   irregular (GW5 is 18 Sep, GW6 is 10 Oct) and freeze.py decides for itself whether
