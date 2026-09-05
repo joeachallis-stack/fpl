@@ -30,6 +30,7 @@ train_ratings.py, not a claim.
 from __future__ import annotations
 
 import csv
+import json
 import math
 from collections import defaultdict
 from datetime import datetime
@@ -122,6 +123,77 @@ def team_match_rows(path: Path) -> list[dict]:
             "xg": side["xg"],
             "kickoff": datetime.fromisoformat(side["kickoff"].replace("Z", "+00:00")),
         })
+    return sorted(rows, key=lambda row: (row["kickoff"], row["fixture"], not row["home"]))
+
+
+def current_season_rows() -> list[dict]:
+    """Team-match rows for the live season, from the observation ledger.
+
+    Same schema as team_match_rows so the two sources concatenate. The cached CSVs stop
+    at 2025/26; without this the ratings would be frozen at last season and could never
+    learn that a side has changed — which is most of the point.
+
+    Only finished fixtures count, and only the latest revision of each ledger row, so an
+    official correction supersedes rather than double-counts.
+    """
+    ledger = ROOT / "observations" / "player_fixtures.jsonl"
+    if not ledger.exists():
+        return []
+    fixtures = {row["id"]: row for row in json.loads((DATA_DIR / "fixtures.json").read_text())}
+    bootstrap = json.loads((DATA_DIR / "bootstrap.json").read_text())
+    names = {team["id"]: team["name"] for team in bootstrap["teams"]}
+
+    latest: dict[tuple, dict] = {}
+    for line in ledger.read_text().splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        key = (row["season"], row["fixture_id"], row["element"])
+        if key not in latest or row.get("revision", 1) >= latest[key].get("revision", 1):
+            latest[key] = row
+
+    sides: dict[tuple[int, bool], dict] = defaultdict(lambda: {"xg": 0.0})
+    for row in latest.values():
+        fixture = fixtures.get(row["fixture_id"])
+        if not fixture or not fixture.get("finished"):
+            continue
+        side = sides[(row["fixture_id"], bool(row["was_home"]))]
+        side["xg"] += float(row.get("expected_goals") or 0)
+        side["team"] = names.get(row["team"])
+        side["opponent"] = names.get(row["opponent_team"])
+        side["round"] = row["gw"]
+        side["kickoff"] = row["kickoff_time"]
+
+    rows = []
+    for (fixture_id, home), side in sides.items():
+        fixture = fixtures[fixture_id]
+        if not side.get("team") or not side.get("opponent"):
+            continue
+        home_goals = fixture.get("team_h_score")
+        away_goals = fixture.get("team_a_score")
+        if home_goals is None or away_goals is None:
+            continue
+        rows.append({
+            "fixture": fixture_id,
+            "team": side["team"],
+            "opponent": side["opponent"],
+            "home": home,
+            "round": side["round"],
+            "goals": home_goals if home else away_goals,
+            "xg": side["xg"],
+            "kickoff": datetime.fromisoformat(side["kickoff"].replace("Z", "+00:00")),
+        })
+    return sorted(rows, key=lambda row: (row["kickoff"], row["fixture"], not row["home"]))
+
+
+def load_all_rows(seasons: tuple[str, ...] = ("2024-25", "2025-26")) -> list[dict]:
+    """Cached historical seasons plus the live one, oldest first."""
+    rows: list[dict] = []
+    for season in seasons:
+        path = DATA_DIR / f"{season}_merged_gw.csv"
+        if path.exists():
+            rows.extend(team_match_rows(path))
+    rows.extend(current_season_rows())
     return sorted(rows, key=lambda row: (row["kickoff"], row["fixture"], not row["home"]))
 
 
@@ -286,13 +358,15 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--season", default="2025-26")
+    parser.add_argument("--season", default="2025-26",
+                        help="cached season, or 'live' for all history plus the current season")
     parser.add_argument("--half-life", type=float, default=DEFAULT_HALF_LIFE_DAYS)
     parser.add_argument("--prior-strength", type=float, default=DEFAULT_PRIOR_STRENGTH)
     parser.add_argument("--target", choices=("goals", "xg"), default="goals")
     args = parser.parse_args()
 
-    rows = team_match_rows(DATA_DIR / f"{args.season}_merged_gw.csv")
+    rows = (load_all_rows() if args.season == "live"
+            else team_match_rows(DATA_DIR / f"{args.season}_merged_gw.csv"))
     asof = max(row["kickoff"] for row in rows)
     model = fit(
         rows, asof,

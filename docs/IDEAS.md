@@ -358,8 +358,16 @@ information about a team can reach that team's later fixture. Ratings are contin
 per team, so one fixture constrains both sides and a rating applies to every fixture the
 team plays.
 
-Walk-forward result, 4,260 scored team-match sides across 38 cutoff rounds, Poisson NLL
-on actual goals (lower is better):
+**Statistical caveats, stated before the numbers.** Every match-side is re-forecast from
+up to six cutoffs, and those forecasts share one actual outcome, so `n = 4,260` is really
+760 correlated clusters. All standard errors below are cluster-robust on the match-side;
+the naive versions inflate every t-statistic by roughly 2x and an earlier version of this
+section reported them. There is also **no held-out season** — 2025/26 is both where
+hyperparameters were chosen and where they were scored — so the selected parameters are
+not validated out of sample, only the model class is.
+
+Walk-forward result, 4,260 scored team-match sides in 760 clusters across 38 cutoff
+rounds, Poisson NLL on actual goals (lower is better):
 
 | model | NLL | MAE | RMSE | bias |
 |---|---|---|---|---|
@@ -369,6 +377,22 @@ on actual goals (lower is better):
 
 Ratings win at every forecast lead 1-6 (NLL delta -0.018 to -0.027), which is the point:
 the gap does not close as the horizon lengthens.
+
+**Is the headline real, or selection noise?** Two checks, both of which it passes:
+
+- Clustered paired test of the selected model against the incumbent: mean delta -0.02276,
+  **clustered t = -2.88** (naive t would have said -6.21). Significant, but half as
+  emphatic as it first looked.
+- Selection robustness: **79 of the 80 grid candidates beat the incumbent**, median
+  candidate 1.44751 against the incumbent's 1.46336. The conclusion therefore does not
+  depend on having picked the winner from 80 tries — which is the specific overfitting
+  risk worth worrying about here.
+
+What is *not* established is the specific hyperparameters. Choosing hl730/prior-8/xG from
+80 candidates scored on the same data is selection on the test set, and the surface is
+flat enough (365 to 3650 days differ in the fifth decimal) that the half-life is
+essentially unidentified. Treat "team strength is close to stationary and xG beats goals"
+as the finding; treat 730 days as an arbitrary point on a plateau.
 
 Three things to read honestly:
 
@@ -395,11 +419,11 @@ promoted-team forecasts:
 
 | matches played | n | mean delta NLL | SE | t |
 |---|---|---|---|---|
-| 0-4 | 90 | -0.00751 | 0.01356 | -0.55 |
-| 5-9 | 90 | +0.02052 | 0.01323 | +1.55 |
-| 10-19 | 180 | +0.00696 | 0.00740 | +0.94 |
-| 20+ | 279 | -0.00163 | 0.00422 | -0.39 |
-| pooled | 639 | +0.00308 | 0.00386 | +0.80 |
+| 0-4 | 90 | -0.00751 | 0.02330 | -0.32 |
+| 5-9 | 90 | +0.02052 | 0.02524 | +0.81 |
+| 10-19 | 180 | +0.00696 | 0.01617 | +0.43 |
+| 20+ | 279 | -0.00163 | 0.01002 | -0.16 |
+| pooled | 639 | +0.00308 | 0.00907 | +0.34 |
 
 Negative favours the prior. **The prior is not evidence-selected**: no bucket reaches
 |t| = 2 and the sign flips between buckets. By this document's own ablation rule it does
@@ -437,8 +461,10 @@ the sign of this feature depends entirely on how noisy the anchor is.**
 
 | oracle | weight 2 | weight 6 | weight 20 |
 |---|---|---|---|
-| realized xG (one draw from lambda; noisier than a price) | t = -0.05 | +1.78 | **+5.18** |
-| full-season model lambda (pure team strength; no market is this clean) | **t = -5.98** | -6.11 | -6.32 |
+| realized xG (one draw from lambda; noisier than a price) | t = -0.05 | +1.73 | **+4.94** |
+| full-season model lambda (pure team strength; no market is this clean) | **t = -3.70** | -3.70 | -3.72 |
+
+All t-statistics cluster-robust on the match-side.
 
 Negative favours anchoring, leads 2-6 only. Anchoring on a *noisy* estimate is actively
 harmful and gets worse with weight — injecting one match of noise into a rating built on
@@ -449,29 +475,43 @@ bookmaker line sits between the two and nothing cached says where.
 under the pessimistic bound. This is not a fitted value and must not be raised until it
 can be fitted against real archived prices, which `odds/` began accumulating the same day.
 
-The managerial-change hypothesis holds, and is the best argument for the feature. Splitting
-the clean-oracle result by how far a rating had drifted from the oracle:
+**The managerial-change hypothesis is suggestive but NOT established.** Splitting the
+clean-oracle result by how far a rating had drifted, with cluster-robust standard errors:
 
-| staleness quartile | n | mean delta NLL | t |
+| staleness quartile | mean delta NLL | clustered t | naive t |
 |---|---|---|---|
-| Q1 least stale | 875 | -0.00154 | -2.03 |
-| Q2 | 875 | -0.00289 | -4.10 |
-| Q3 | 875 | -0.00286 | -4.15 |
-| Q4 most stale | 875 | -0.00487 | -3.32 |
+| Q1 least stale | -0.00154 | -1.79 | -2.03 |
+| Q2 | -0.00289 | -3.16 | -4.10 |
+| Q3 | -0.00286 | -3.38 | -4.14 |
+| Q4 most stale | -0.00487 | **-1.92** | -3.31 |
 
-The anchor earns roughly 3x more where the rating had gone stale, which is exactly the
-Chelsea case — a side whose results have not caught up with what it now is. That is the
-mechanism working as designed.
+The point estimate is largest for the most stale quartile, which is the Chelsea case and
+the direction theory predicts. But **Q4 does not reach significance once clustered**
+(t = -1.92), the quartile ordering is not monotone, and the "3x Q4 over Q1" comparison was
+never a pre-registered test. An earlier version of this section claimed the hypothesis
+held; on the corrected standard errors it does not. It remains the best *reason* to expect
+the feature to work, not evidence that it does.
 
 **But keep the ceiling in view.** The best case here is ~0.003-0.005 NLL, against the
 0.023 already banked by replacing the FDR fallback with ratings at all. Anchoring is a
 refinement worth roughly an eighth of the change it refines. It should not absorb more
 effort until real prices can fit its weight.
 
-**Not yet adopted.** One piece remains before ratings can replace the fallback in
-`projections.py`: a current-season team-match loader, since the walk-forward runs off the
-two cached CSVs and live 2026/27 rows have to come from the observation ledger. Adoption
-must then be re-judged on decision-weighted player forecasts, not on team goals.
+#### Current-season loader — built 2026-09-05
+
+`ratings.current_season_rows()` reads finished 2026/27 fixtures from the observation
+ledger (latest revision only, so official corrections supersede rather than double-count)
+and emits the same schema as the cached-CSV reader. `ratings.load_all_rows()` concatenates
+both. Without this the ratings would be frozen at last season and could never learn that a
+side has changed, which is most of the point. `python scripts/ratings.py --season live`
+fits across all of it — currently 1,560 team-match sides, 40 of them from 2026/27 GW1-2.
+
+It also makes the promoted-team problem concrete rather than theoretical: Hull City
+currently rates fifth on attack-over-defence off **two matches**, and is flagged `thin`
+by `effective_matches_by_team` precisely so that number is not mistaken for Arsenal's.
+
+**Still not adopted.** Adoption must be judged on decision-weighted player forecasts, not
+team goals, and that test cannot run until frozen projection archives resolve.
 
 Also note the scope of what was measured: this improves **team goals**, an input. The
 adoption rule in this document is improvement in decision-weighted player forecasts.

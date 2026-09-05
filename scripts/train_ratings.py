@@ -300,26 +300,16 @@ def promoted_prior_ablation(
                     - poisson_nll(ratings.expected_goals(without, home_team, away_team)[side],
                                   row["goals"])
                 )
-                paired[bucket(played[row["team"]])].append(delta)
+                paired[bucket(played[row["team"]])].append(
+                    ((row["fixture"], row["home"]), delta))
 
-    def stats(values: list[float]) -> dict:
-        if len(values) < 2:
-            return {"n": len(values), "mean_delta_nll": None, "se": None, "t": None}
-        mean = statistics.mean(values)
-        se = statistics.stdev(values) / math.sqrt(len(values))
-        return {
-            "n": len(values),
-            "mean_delta_nll": round(mean, 5),
-            "se": round(se, 5),
-            "t": round(mean / se, 2) if se else None,
-        }
-
-    pooled = [value for values in paired.values() for value in values]
+    pooled = [pair for values in paired.values() for pair in values]
     return {
         "question": "promoted-team prior minus league-average prior; negative favours the prior",
         "promoted_teams": sorted(promoted),
-        "by_matches_played": {b: stats(paired[b]) for b in ("0-4", "5-9", "10-19", "20+")},
-        "pooled": stats(pooled),
+        "by_matches_played": {b: paired_stats(paired[b])
+                              for b in ("0-4", "5-9", "10-19", "20+")},
+        "pooled": paired_stats(pooled),
         "verdict": (
             "not evidence-selected: no bucket reaches |t| = 2 and the sign flips between "
             "buckets. Retained on a priori grounds only, because at zero history the "
@@ -329,13 +319,29 @@ def promoted_prior_ablation(
     }
 
 
-def paired_stats(values: list[float]) -> dict:
+def paired_stats(pairs: list[tuple]) -> dict:
+    """Paired mean with a cluster-robust standard error.
+
+    Every match-side is re-forecast from up to six different cutoffs, and those forecasts
+    share one actual outcome, so their errors are correlated. Treating them as independent
+    understates the standard error by roughly the square root of the repeat count and
+    inflates every t-statistic. Clustering on the match-side (CR0) is what makes these
+    numbers mean what they appear to mean.
+    """
+    values = [value for _, value in pairs]
     if len(values) < 2:
-        return {"n": len(values), "mean_delta_nll": None, "se": None, "t": None}
+        return {"n": len(values), "clusters": 0, "mean_delta_nll": None,
+                "se": None, "naive_se": None, "t": None}
+    n = len(values)
     mean = statistics.mean(values)
-    se = statistics.stdev(values) / math.sqrt(len(values))
-    return {"n": len(values), "mean_delta_nll": round(mean, 5),
-            "se": round(se, 5), "t": round(mean / se, 2) if se else None}
+    residual_by_cluster: dict[object, float] = defaultdict(float)
+    for cluster, value in pairs:
+        residual_by_cluster[cluster] += value - mean
+    se = math.sqrt(sum(r * r for r in residual_by_cluster.values())) / n
+    naive = statistics.stdev(values) / math.sqrt(n)
+    return {"n": n, "clusters": len(residual_by_cluster),
+            "mean_delta_nll": round(mean, 5), "se": round(se, 6),
+            "naive_se": round(naive, 6), "t": round(mean / se, 2) if se else None}
 
 
 def _staleness_quartiles(pairs: list[tuple[float, float]], stats) -> dict | None:
@@ -348,7 +354,7 @@ def _staleness_quartiles(pairs: list[tuple[float, float]], stats) -> dict | None
     out = {}
     for position, label in enumerate(labels):
         chunk = ordered[position * size:(position + 1) * size] if position < 3 else ordered[3 * size:]
-        out[label] = stats([delta for _, delta in chunk])
+        out[label] = stats([(cluster, delta) for _, cluster, delta in chunk])
     return out
 
 
@@ -438,9 +444,11 @@ def anchor_upper_bound(
                             ratings.expected_goals(base, home_team, away_team)[side],
                             row["goals"])
                     )
-                    paired[weight][lead].append(delta)
+                    cluster = (row["fixture"], row["home"])
+                    paired[weight][lead].append((cluster, delta))
                     if stale and weight == max(weights):
-                        staleness_pairs.append((stale.get(row["team"], 0.0), delta))
+                        staleness_pairs.append(
+                            (stale.get(row["team"], 0.0), cluster, delta))
 
     return {
         "oracle": oracle,
@@ -460,6 +468,42 @@ def anchor_upper_bound(
             for weight in weights
         },
     }
+
+
+def headline_test(prehistory: list[dict], season: list[dict], half_life: float,
+                  prior_strength: float, target: str) -> dict:
+    """Clustered paired test of the selected ratings model against the incumbent.
+
+    Comparing two mean NLLs says nothing about whether the gap could be noise. This is
+    the number that decides it, and it is clustered for the reason in paired_stats.
+    """
+    rounds = cutoffs_for(season)
+    by_round: dict[int, list[dict]] = defaultdict(list)
+    for row in season:
+        by_round[row["round"]].append(row)
+    promoted = {row["team"] for row in season} - {row["team"] for row in prehistory}
+    pairs = []
+    for cutoff_round in sorted(rounds):
+        cutoff = rounds[cutoff_round]
+        history = [row for row in prehistory + season if row["kickoff"] < cutoff]
+        incumbent = build_incumbent(history) if history else None
+        if not incumbent:
+            continue
+        model = ratings.fit(history, cutoff, half_life, prior_strength, target, promoted)
+        for lead in range(1, MAX_LEAD + 1):
+            for row in by_round.get(cutoff_round + lead - 1, []):
+                home_team = row["team"] if row["home"] else row["opponent"]
+                away_team = row["opponent"] if row["home"] else row["team"]
+                side = 0 if row["home"] else 1
+                delta = (
+                    poisson_nll(ratings.expected_goals(model, home_team, away_team)[side],
+                                row["goals"])
+                    - poisson_nll(
+                        incumbent_lambda(incumbent, row["team"], row["opponent"], row["home"]),
+                        row["goals"])
+                )
+                pairs.append(((row["fixture"], row["home"]), delta))
+    return paired_stats(pairs)
 
 
 def main() -> None:
@@ -486,6 +530,17 @@ def main() -> None:
                        (f"ratings {best_name}", best["overall"])):
         print(f"{label:28s} {row['n']:6d} {row['nll']:9.5f} {row['mae']:8.5f} "
               f"{row['rmse']:8.5f} {row['bias']:8.5f}")
+
+    head = headline_test(prehistory, season, best["half_life_days"],
+                         best["prior_strength"], best["target"])
+    print(f"\nheadline paired test, ratings minus incumbent (negative favours ratings)")
+    print(f"  mean {head['mean_delta_nll']:+.5f}  n {head['n']}  clusters {head['clusters']}"
+          f"  naive t {head['mean_delta_nll'] / head['naive_se']:+.2f}"
+          f"  clustered t {head['t']:+.2f}")
+    beat = sum(1 for row in result["candidates"].values()
+               if row["overall"]["nll"] < incumbent["nll"])
+    print(f"  selection robustness: {beat}/{len(result['candidates'])} grid candidates "
+          f"beat the incumbent")
 
     print(f"\n{'lead':>5s} {'incumbent':>11s} {'ratings':>11s} {'delta':>9s}")
     for lead in sorted(best["by_lead"], key=int):
@@ -536,6 +591,7 @@ def main() -> None:
         "primary_metric": "poisson negative log-likelihood on actual team goals",
         "selected": {"name": best_name, **{k: v for k, v in best.items() if k != "by_lead"},
                      "by_lead": best["by_lead"]},
+        "headline_paired_test": head,
         "promoted_prior_ablation": ablation,
         "anchor_bracket": bounds,
         "incumbent_note": (

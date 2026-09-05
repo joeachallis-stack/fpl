@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-05T22:01:52+00:00",
+  "generated_at": "2026-09-05T22:07:07+00:00",
   "model": "team-ratings-v1",
   "eval_season": "2025-26",
   "prehistory_season": "2024-25",
@@ -61,6 +61,14 @@
       }
     }
   },
+  "headline_paired_test": {
+    "n": 4260,
+    "clusters": 760,
+    "mean_delta_nll": -0.02276,
+    "se": 0.007899,
+    "naive_se": 0.003665,
+    "t": -2.88
+  },
   "promoted_prior_ablation": {
     "question": "promoted-team prior minus league-average prior; negative favours the prior",
     "promoted_teams": [
@@ -71,34 +79,44 @@
     "by_matches_played": {
       "0-4": {
         "n": 90,
+        "clusters": 30,
         "mean_delta_nll": -0.00751,
-        "se": 0.01356,
-        "t": -0.55
+        "se": 0.023302,
+        "naive_se": 0.013556,
+        "t": -0.32
       },
       "5-9": {
         "n": 90,
+        "clusters": 30,
         "mean_delta_nll": 0.02052,
-        "se": 0.01323,
-        "t": 1.55
+        "se": 0.025237,
+        "naive_se": 0.013229,
+        "t": 0.81
       },
       "10-19": {
         "n": 180,
+        "clusters": 45,
         "mean_delta_nll": 0.00696,
-        "se": 0.0074,
-        "t": 0.94
+        "se": 0.016175,
+        "naive_se": 0.0074,
+        "t": 0.43
       },
       "20+": {
         "n": 279,
+        "clusters": 54,
         "mean_delta_nll": -0.00163,
-        "se": 0.00422,
-        "t": -0.39
+        "se": 0.010019,
+        "naive_se": 0.004225,
+        "t": -0.16
       }
     },
     "pooled": {
       "n": 639,
+      "clusters": 114,
       "mean_delta_nll": 0.00308,
-      "se": 0.00386,
-      "t": 0.8
+      "se": 0.009071,
+      "naive_se": 0.003858,
+      "t": 0.34
     },
     "verdict": "not evidence-selected: no bucket reaches |t| = 2 and the sign flips between buckets. Retained on a priori grounds only, because at zero history the alternative is to call a promoted side exactly league average. The prior's influence is fully gone by 20+ matches, which is the convergence claim."
   },
@@ -113,39 +131,51 @@
         "2": {
           "pooled": {
             "n": 3500,
+            "clusters": 740,
             "mean_delta_nll": -3e-05,
-            "se": 0.00059,
+            "se": 0.000599,
+            "naive_se": 0.000588,
             "t": -0.05
           },
           "by_lead": {
             "2": {
               "n": 740,
+              "clusters": 740,
               "mean_delta_nll": 0.00092,
               "se": 0.00122,
+              "naive_se": 0.00122,
               "t": 0.76
             },
             "3": {
               "n": 720,
+              "clusters": 720,
               "mean_delta_nll": -9e-05,
-              "se": 0.00129,
+              "se": 0.001288,
+              "naive_se": 0.001289,
               "t": -0.07
             },
             "4": {
               "n": 700,
+              "clusters": 700,
               "mean_delta_nll": -0.00105,
-              "se": 0.00142,
-              "t": -0.74
+              "se": 0.001415,
+              "naive_se": 0.001416,
+              "t": -0.75
             },
             "5": {
               "n": 680,
+              "clusters": 680,
               "mean_delta_nll": 0.00025,
-              "se": 0.00124,
+              "se": 0.001237,
+              "naive_se": 0.001238,
               "t": 0.2
             },
             "6": {
               "n": 660,
+              "clusters": 660,
               "mean_delta_nll": -0.00022,
-              "se": 0.00141,
+              "se": 0.001409,
+              "naive_se": 0.00141,
               "t": -0.16
             }
           }
@@ -153,39 +183,51 @@
         "6": {
           "pooled": {
             "n": 3500,
+            "clusters": 740,
             "mean_delta_nll": 0.00256,
-            "se": 0.00144,
-            "t": 1.78
+            "se": 0.001476,
+            "naive_se": 0.00144,
+            "t": 1.73
           },
           "by_lead": {
             "2": {
               "n": 740,
+              "clusters": 740,
               "mean_delta_nll": 0.00423,
-              "se": 0.00299,
-              "t": 1.41
+              "se": 0.002991,
+              "naive_se": 0.002993,
+              "t": 1.42
             },
             "3": {
               "n": 720,
+              "clusters": 720,
               "mean_delta_nll": 0.00265,
-              "se": 0.0032,
+              "se": 0.003199,
+              "naive_se": 0.003201,
               "t": 0.83
             },
             "4": {
               "n": 700,
+              "clusters": 700,
               "mean_delta_nll": 0.00027,
-              "se": 0.00332,
+              "se": 0.003319,
+              "naive_se": 0.003322,
               "t": 0.08
             },
             "5": {
               "n": 680,
+              "clusters": 680,
               "mean_delta_nll": 0.00338,
-              "se": 0.00312,
-              "t": 1.08
+              "se": 0.003113,
+              "naive_se": 0.003115,
+              "t": 1.09
             },
             "6": {
               "n": 660,
+              "clusters": 660,
               "mean_delta_nll": 0.00216,
-              "se": 0.0035,
+              "se": 0.003496,
+              "naive_se": 0.003499,
               "t": 0.62
             }
           }
@@ -193,40 +235,52 @@
         "20": {
           "pooled": {
             "n": 3500,
+            "clusters": 740,
             "mean_delta_nll": 0.01603,
-            "se": 0.00309,
-            "t": 5.18
+            "se": 0.003247,
+            "naive_se": 0.003094,
+            "t": 4.94
           },
           "by_lead": {
             "2": {
               "n": 740,
+              "clusters": 740,
               "mean_delta_nll": 0.01766,
-              "se": 0.00636,
+              "se": 0.006357,
+              "naive_se": 0.006361,
               "t": 2.78
             },
             "3": {
               "n": 720,
+              "clusters": 720,
               "mean_delta_nll": 0.01712,
-              "se": 0.00695,
+              "se": 0.006945,
+              "naive_se": 0.00695,
               "t": 2.46
             },
             "4": {
               "n": 700,
+              "clusters": 700,
               "mean_delta_nll": 0.01134,
-              "se": 0.00681,
+              "se": 0.006806,
+              "naive_se": 0.006811,
               "t": 1.67
             },
             "5": {
               "n": 680,
+              "clusters": 680,
               "mean_delta_nll": 0.01868,
-              "se": 0.00691,
+              "se": 0.006901,
+              "naive_se": 0.006906,
               "t": 2.71
             },
             "6": {
               "n": 660,
+              "clusters": 660,
               "mean_delta_nll": 0.01524,
-              "se": 0.00764,
-              "t": 1.99
+              "se": 0.007634,
+              "naive_se": 0.00764,
+              "t": 2.0
             }
           }
         }
@@ -240,66 +294,86 @@
       "by_staleness_quartile": {
         "q1_least_stale": {
           "n": 875,
+          "clusters": 318,
           "mean_delta_nll": -0.00154,
-          "se": 0.00076,
-          "t": -2.03
+          "se": 0.000859,
+          "naive_se": 0.000758,
+          "t": -1.79
         },
         "q2": {
           "n": 875,
+          "clusters": 382,
           "mean_delta_nll": -0.00289,
-          "se": 0.0007,
-          "t": -4.1
+          "se": 0.000916,
+          "naive_se": 0.000705,
+          "t": -3.16
         },
         "q3": {
           "n": 875,
+          "clusters": 359,
           "mean_delta_nll": -0.00286,
-          "se": 0.00069,
-          "t": -4.15
+          "se": 0.000848,
+          "naive_se": 0.00069,
+          "t": -3.38
         },
         "q4_most_stale": {
           "n": 875,
+          "clusters": 275,
           "mean_delta_nll": -0.00487,
-          "se": 0.00147,
-          "t": -3.32
+          "se": 0.002538,
+          "naive_se": 0.00147,
+          "t": -1.92
         }
       },
       "by_weight": {
         "2": {
           "pooled": {
             "n": 3500,
+            "clusters": 740,
             "mean_delta_nll": -0.00064,
-            "se": 0.00011,
-            "t": -5.98
+            "se": 0.000174,
+            "naive_se": 0.000107,
+            "t": -3.7
           },
           "by_lead": {
             "2": {
               "n": 740,
+              "clusters": 740,
               "mean_delta_nll": -0.00029,
-              "se": 0.0002,
+              "se": 0.000195,
+              "naive_se": 0.000195,
               "t": -1.49
             },
             "3": {
               "n": 720,
+              "clusters": 720,
               "mean_delta_nll": -0.00053,
-              "se": 0.00024,
-              "t": -2.2
+              "se": 0.000239,
+              "naive_se": 0.000239,
+              "t": -2.21
             },
             "4": {
               "n": 700,
+              "clusters": 700,
               "mean_delta_nll": -0.00069,
-              "se": 0.00028,
+              "se": 0.000283,
+              "naive_se": 0.000283,
               "t": -2.43
             },
             "5": {
               "n": 680,
+              "clusters": 680,
               "mean_delta_nll": -0.00092,
-              "se": 0.00021,
+              "se": 0.000209,
+              "naive_se": 0.000209,
               "t": -4.39
             },
             "6": {
               "n": 660,
+              "clusters": 660,
               "mean_delta_nll": -0.00083,
-              "se": 0.00027,
+              "se": 0.000268,
+              "naive_se": 0.000268,
               "t": -3.09
             }
           }
@@ -307,39 +381,51 @@
         "6": {
           "pooled": {
             "n": 3500,
+            "clusters": 740,
             "mean_delta_nll": -0.00153,
-            "se": 0.00025,
-            "t": -6.11
+            "se": 0.000413,
+            "naive_se": 0.00025,
+            "t": -3.7
           },
           "by_lead": {
             "2": {
               "n": 740,
+              "clusters": 740,
               "mean_delta_nll": -0.00078,
-              "se": 0.00046,
+              "se": 0.000463,
+              "naive_se": 0.000463,
               "t": -1.69
             },
             "3": {
               "n": 720,
+              "clusters": 720,
               "mean_delta_nll": -0.0013,
-              "se": 0.00056,
+              "se": 0.000561,
+              "naive_se": 0.000561,
               "t": -2.31
             },
             "4": {
               "n": 700,
+              "clusters": 700,
               "mean_delta_nll": -0.00154,
-              "se": 0.00063,
+              "se": 0.000632,
+              "naive_se": 0.000632,
               "t": -2.44
             },
             "5": {
               "n": 680,
+              "clusters": 680,
               "mean_delta_nll": -0.00215,
               "se": 0.0005,
+              "naive_se": 0.000501,
               "t": -4.29
             },
             "6": {
               "n": 660,
+              "clusters": 660,
               "mean_delta_nll": -0.00195,
-              "se": 0.00063,
+              "se": 0.000627,
+              "naive_se": 0.000628,
               "t": -3.11
             }
           }
@@ -347,39 +433,51 @@
         "20": {
           "pooled": {
             "n": 3500,
+            "clusters": 740,
             "mean_delta_nll": -0.00304,
-            "se": 0.00048,
-            "t": -6.32
+            "se": 0.000817,
+            "naive_se": 0.000482,
+            "t": -3.72
           },
           "by_lead": {
             "2": {
               "n": 740,
+              "clusters": 740,
               "mean_delta_nll": -0.00184,
-              "se": 0.00092,
+              "se": 0.000917,
+              "naive_se": 0.000917,
               "t": -2.0
             },
             "3": {
               "n": 720,
+              "clusters": 720,
               "mean_delta_nll": -0.00273,
-              "se": 0.00109,
-              "t": -2.5
+              "se": 0.001088,
+              "naive_se": 0.001089,
+              "t": -2.51
             },
             "4": {
               "n": 700,
+              "clusters": 700,
               "mean_delta_nll": -0.0028,
               "se": 0.00116,
-              "t": -2.41
+              "naive_se": 0.001161,
+              "t": -2.42
             },
             "5": {
               "n": 680,
+              "clusters": 680,
               "mean_delta_nll": -0.00416,
-              "se": 0.00101,
+              "se": 0.001004,
+              "naive_se": 0.001005,
               "t": -4.14
             },
             "6": {
               "n": 660,
+              "clusters": 660,
               "mean_delta_nll": -0.00384,
               "se": 0.00121,
+              "naive_se": 0.001211,
               "t": -3.17
             }
           }
