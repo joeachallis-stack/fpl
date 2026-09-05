@@ -343,6 +343,71 @@ without returning to the earlier multi-megabyte format. The current 1,236 finali
 observation rows reconstruct official total points exactly. There are no frozen projection
 archives yet, so real forecast-error tables begin with the next pre-deadline archive.
 
+### Team attack/defence ratings — built and validated 2026-09-05, not yet adopted
+
+`scripts/ratings.py` fits an independent-Poisson team model,
+`log lambda = mu + home_advantage + attack[team] - defence[opponent]`, by weighted
+maximum likelihood with exponential time decay and an L2 penalty toward a per-team prior.
+`scripts/train_ratings.py` selects it walk-forward on 2025/26 with 2024/25 as prehistory,
+against the FDR fallback replicated in its exact production form.
+
+The motivation is structural, not sample size. Over the live GW4-9 horizon FPL's
+difficulty is nearly a per-team constant — six clubs sit at exactly 3.00 with zero
+variance — so the bucket fallback cannot distinguish Tottenham from Everton, and no
+information about a team can reach that team's later fixture. Ratings are continuous and
+per team, so one fixture constrains both sides and a rating applies to every fixture the
+team plays.
+
+Walk-forward result, 4,260 scored team-match sides across 38 cutoff rounds, Poisson NLL
+on actual goals (lower is better):
+
+| model | NLL | MAE | RMSE | bias |
+|---|---|---|---|---|
+| league average | 1.46828 | 0.93959 | 1.11778 | +0.05687 |
+| incumbent (FDR tier + 5-match form) | 1.46336 | 0.90601 | 1.11518 | -0.02172 |
+| ratings, half-life 730d, prior 8, xG target | 1.44060 | 0.88453 | 1.08577 | +0.01613 |
+
+Ratings win at every forecast lead 1-6 (NLL delta -0.018 to -0.027), which is the point:
+the gap does not close as the horizon lengthens.
+
+Three things to read honestly:
+
+- **The incumbent is barely better than assuming every team is league average** (1.46336
+  against 1.46828). Most of what looked like a fixture model was doing very little work.
+- **The win comes from xG and continuous team identity, not from the decay schedule.**
+  Every one of the top eight candidates uses the xG target (best xG 1.44060 against best
+  goals 1.44637), while half-life is flat from 365 through 3650 days (1.44060 to 1.44069,
+  differences in the fifth decimal). Team strength over a two-season window is close to
+  stationary. This contradicts the prior expectation that 2025/26 should be weighted much
+  more heavily than 2024/25 — recency is not where the signal is. What *does* handle a
+  managerial change or regime shift is the odds anchor, not a shorter half-life.
+- The incumbent was given every advantage available: historical FDR does not exist in the
+  data, so difficulty was proxied by rolling goal-difference tiers that update weekly
+  (strictly better than FPL's static preseason FDR), and its buckets were calibrated on
+  actual goals rather than the unavailable historical odds. The measured gap is a lower
+  bound.
+
+Promoted sides with no top-flight history are pulled toward a promoted-team prior
+(2025/26 promoted teams scored 0.73-0.94x and conceded 0.92-1.44x league average). Three
+teams in one season is a thin basis, so the prior is deliberately mild and shrinks fast;
+this is the weakest part of the model and matters directly for Coventry, Hull and Ipswich,
+the three current sides with no history in either cached season.
+
+**Not yet adopted.** Two pieces remain before this can replace the fallback in
+`projections.py`:
+
+1. A current-season team-match loader. The walk-forward runs off the two cached CSVs;
+   live 2026/27 rows have to come from the observation ledger.
+2. Odds anchoring. Where odds exist they should set the ratings rather than merely
+   coexist with them, so that the market's one-week-ahead view of a team propagates to
+   that team's unpriced fixtures five weeks out. This is the mechanism that answers
+   regime change, and it is untested.
+
+Also note the scope of what was measured: this improves **team goals**, an input. The
+adoption rule in this document is improvement in decision-weighted player forecasts.
+That test cannot run until frozen projection archives resolve, so the ratings model
+should be wired in behind the same walk-forward discipline and judged again there.
+
 ## Future decision dashboard
 
 Once the command-line data contracts are stable, build a local/static HTML decision

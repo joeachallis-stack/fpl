@@ -121,6 +121,9 @@ scripts/
   train_saves.py      — walk-forward fit and ablations for goalkeeper save-point expectation
   saves.py            — runtime save-count distribution used by projections
   counts.py           — shared Poisson/negative-binomial threshold helpers
+  ratings.py          — team attack/defence ratings: weighted-Poisson fit with time decay,
+                        promoted-team priors, and expected goals for any fixture
+  train_ratings.py    — walk-forward selection for ratings against the FDR fallback
   goal_exposure.py    — role-state clean-sheet and goals-conceded scoring transform
   evaluate_goal_exposure.py — historical isolation check against the old shortcut
   odds.py             — fetch near-term EPL odds; remove bookmaker margin and aggregate
