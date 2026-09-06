@@ -318,11 +318,19 @@ class ComponentEvaluationTests(unittest.TestCase):
             "meta": {"gw": 99},
             "players": {"1": {
                 "element": 1, "web_name": "Test", "team": "A", "position": "MID",
-                "xP": 2.0, "horizon_xP": 4.0, "calibration_weight": 0.0,
+                "xP": 2.2, "horizon_xP": 4.4, "calibration_weight": 0.0,
                 "calibration_reasons": ["diagnostic only"],
+                "shadow_variants": {"candidate": {
+                    "xP": 1.1,
+                    "components": {key: 0.1 for key in evaluate.FORECAST_COMPONENTS},
+                }},
                 "gameweeks": [{
-                    "gw": 99, "xP": 2.0,
+                    "gw": 99, "xP": 2.2,
                     "components": {key: 0.2 for key in evaluate.FORECAST_COMPONENTS},
+                    "shadow_variants": {"candidate": {
+                        "xP": 1.1,
+                        "components": {key: 0.1 for key in evaluate.FORECAST_COMPONENTS},
+                    }},
                 }],
             }},
         }
@@ -339,7 +347,14 @@ class ComponentEvaluationTests(unittest.TestCase):
                     evaluate.forecast_components(row, archived["meta"]),
                     payload["players"]["1"]["gameweeks"][0]["components"],
                 )
-                self.assertEqual(archived["meta"]["archive_schema_version"], 2)
+                self.assertEqual(
+                    evaluate.forecast_components(
+                        row["shadow_variants"]["candidate"], archived["meta"]
+                    ),
+                    payload["players"]["1"]["gameweeks"][0]["shadow_variants"]
+                    ["candidate"]["components"],
+                )
+                self.assertEqual(archived["meta"]["archive_schema_version"], 3)
         finally:
             projections.ARCHIVE_DIR = original
 

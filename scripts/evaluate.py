@@ -16,9 +16,12 @@ OUT = DATA / "evaluation.json"
 
 FORECAST_COMPONENTS = (
     "appearance", "goals", "assists", "clean_sheet", "goals_conceded",
-    "yellow", "red", "defcon", "bonus", "saves",
+    "yellow", "red", "defcon", "bonus", "saves", "penalties_missed",
 )
-UNMODELED_COMPONENTS = ("own_goals", "penalties_saved", "penalties_missed")
+UNMODELED_COMPONENTS = ("own_goals", "penalties_saved")
+POTENTIAL_RESIDUAL_COMPONENTS = (
+    "own_goals", "penalties_saved", "penalties_missed", "unexplained",
+)
 
 
 def latest_observations() -> dict[tuple[str, int, int], list[dict]]:
@@ -68,8 +71,14 @@ def observation_components(row: dict, scoring: dict) -> dict[str, float]:
     return components
 
 
-def aggregate_actual(rows: list[dict], scoring: dict) -> dict:
-    components = {key: 0.0 for key in FORECAST_COMPONENTS + UNMODELED_COMPONENTS}
+def aggregate_actual(
+    rows: list[dict], scoring: dict,
+    modeled_components: tuple[str, ...] = FORECAST_COMPONENTS,
+) -> dict:
+    components = {
+        key: 0.0
+        for key in set(FORECAST_COMPONENTS + UNMODELED_COMPONENTS)
+    }
     components["unexplained"] = 0.0
     official_total = 0.0
     for row in rows:
@@ -77,8 +86,12 @@ def aggregate_actual(rows: list[dict], scoring: dict) -> dict:
         for key, value in fixture.items():
             components[key] += value
         official_total += row.get("total_points") or 0
-    modeled_total = sum(components[key] for key in FORECAST_COMPONENTS)
-    residual = sum(components[key] for key in UNMODELED_COMPONENTS) + components["unexplained"]
+    modeled = set(modeled_components)
+    modeled_total = sum(components.get(key, 0.0) for key in modeled)
+    residual = sum(
+        value for key, value in components.items()
+        if key not in modeled
+    )
     return {
         "components": components,
         "modeled_total": modeled_total,
@@ -138,6 +151,78 @@ def metric(rows: list[dict], predicted, actual, weighted: bool) -> dict | None:
     }
 
 
+def shadow_variant_metrics(rows: list[dict], weighted: bool) -> dict:
+    """Paired live-versus-shadow error on the identical frozen forecasts."""
+    variants = sorted({
+        variant for row in rows for variant in row.get("shadow_variants", {})
+    })
+    result = {}
+    for variant in variants:
+        paired = [row for row in rows if variant in row.get("shadow_variants", {})]
+        weights = [row["calibration_weight"] if weighted else 1.0 for row in paired]
+        total_weight = sum(weights)
+        if not paired or total_weight <= 0:
+            continue
+        live_errors = [
+            abs(row["forecast_total"] - row["actual"]["official_total"])
+            for row in paired
+        ]
+        shadow_errors = [
+            abs(row["shadow_variants"][variant]["xP"] - row["actual"]["official_total"])
+            for row in paired
+        ]
+        deltas = [shadow - live for shadow, live in zip(shadow_errors, live_errors)]
+        mean_delta = sum(w * delta for w, delta in zip(weights, deltas)) / total_weight
+        cluster_residuals: dict[tuple, float] = defaultdict(float)
+        for row, weight, delta in zip(paired, weights, deltas):
+            cluster = (row["season"], row["forecast_gw"])
+            cluster_residuals[cluster] += weight * (delta - mean_delta)
+        clusters = len(cluster_residuals)
+        se = None
+        if clusters > 1:
+            se = math.sqrt(
+                clusters / (clusters - 1)
+                * sum(value * value for value in cluster_residuals.values())
+            ) / total_weight
+        component_delta_mae = {}
+        for component in FORECAST_COMPONENTS:
+            eligible = [
+                (row, weight) for row, weight in zip(paired, weights)
+                if row["forecast_components"] is not None
+                and row["shadow_variants"][variant].get("components") is not None
+                and component in row["modeled_components"]
+            ]
+            component_weight = sum(weight for _, weight in eligible)
+            if not component_weight:
+                continue
+            component_delta_mae[component] = sum(
+                weight * (
+                    abs(
+                        row["shadow_variants"][variant]["components"].get(component, 0)
+                        - row["actual"]["components"][component]
+                    )
+                    - abs(
+                        row["forecast_components"].get(component, 0)
+                        - row["actual"]["components"][component]
+                    )
+                )
+                for row, weight in eligible
+            ) / component_weight
+        result[variant] = {
+            "n": len(paired),
+            "weight": total_weight,
+            "live_mae": sum(w * e for w, e in zip(weights, live_errors)) / total_weight,
+            "shadow_mae": sum(w * e for w, e in zip(weights, shadow_errors)) / total_weight,
+            "delta_mae": mean_delta,
+            "gameweek_clusters": clusters,
+            "clustered_se": se,
+            "clustered_t": mean_delta / se if se else None,
+            "component_delta_mae": component_delta_mae,
+            "interpretation": "negative delta favours the shadow challenger",
+        }
+    return result
+
+
 def population_metrics(rows: list[dict], contender: bool) -> dict:
     selected = [row for row in rows if not contender or row["calibration_weight"] > 0]
     weighted = contender
@@ -150,13 +235,17 @@ def population_metrics(rows: list[dict], contender: bool) -> dict:
         "modeled_total": metric(
             component_rows,
             lambda row: sum(
-                row["forecast_components"].get(key, 0) for key in FORECAST_COMPONENTS
+                row["forecast_components"].get(key, 0)
+                for key in row["modeled_components"]
             ),
             lambda row: row["actual"]["modeled_total"], weighted,
         ),
         "components": {
             component: metric(
-                component_rows,
+                [
+                    row for row in component_rows
+                    if component in row["modeled_components"]
+                ],
                 lambda row, key=component: row["forecast_components"].get(key, 0),
                 lambda row, key=component: row["actual"]["components"][key],
                 weighted,
@@ -172,11 +261,15 @@ def population_metrics(rows: list[dict], contender: bool) -> dict:
             "total_forecasts": len(selected),
         },
         "residual_components": {},
+        "shadow_variants": shadow_variant_metrics(selected, weighted),
     }
-    for component in UNMODELED_COMPONENTS + ("unexplained",):
+    for component in POTENTIAL_RESIDUAL_COMPONENTS:
         values = [
             (
-                row["actual"]["components"][component],
+                (
+                    row["actual"]["components"][component]
+                    if component not in row["modeled_components"] else 0.0
+                ),
                 row["calibration_weight"] if weighted else 1.0,
             )
             for row in component_rows
@@ -217,15 +310,17 @@ def build_evaluation(window: int) -> dict:
                 observed = observations.get((season, forecast["gw"], player["element"]))
                 if observed is None:
                     continue
-                actual = aggregate_actual(observed, scoring)
+                components = forecast_components(forecast, payload["meta"])
+                modeled_components = tuple(components) if components is not None else ()
+                actual = aggregate_actual(observed, scoring, modeled_components)
                 if actual["official_total"] != actual["reconstructed_total"]:
                     raise ValueError(
                         f"actual component reconstruction failed for {season} "
                         f"GW{forecast['gw']} element {player['element']}"
                     )
-                components = forecast_components(forecast, payload["meta"])
                 samples.append({
                     "archive": path.name,
+                    "season": season,
                     "model_version": payload["meta"].get("model_version", "unknown"),
                     "base_gw": base_gw,
                     "forecast_gw": forecast["gw"],
@@ -235,6 +330,16 @@ def build_evaluation(window: int) -> dict:
                     "calibration_weight": float(player.get("calibration_weight", 0)),
                     "forecast_total": forecast["xP"],
                     "forecast_components": components,
+                    "modeled_components": modeled_components,
+                    "shadow_variants": {
+                        variant: {
+                            "xP": float(candidate["xP"]),
+                            "components": forecast_components(candidate, payload["meta"]),
+                        }
+                        for variant, candidate in forecast.get(
+                            "shadow_variants", {}
+                        ).items()
+                    },
                     "actual": actual,
                 })
                 resolved += 1
@@ -246,6 +351,7 @@ def build_evaluation(window: int) -> dict:
             "scoring_source": scoring_source,
             "resolved_forecasts": resolved,
             "component_forecasts": component_ready,
+            "component_order": payload["meta"].get("component_order", []),
         })
 
     by_lead: dict[int, list[dict]] = defaultdict(list)
@@ -321,6 +427,15 @@ def print_report(payload: dict) -> None:
                     f"GW+{lead:<3}{component:<18}{row['n']:>6}"
                     f"{row['mae']:>10.3f}{row['rmse']:>10.3f}{row['bias']:>+10.3f}"
                 )
+    shadows = payload["overall"]["contenders"].get("shadow_variants", {})
+    if shadows:
+        print("\npaired contender shadow models (negative delta favours shadow):")
+        for name, row in shadows.items():
+            print(
+                f"  {name}: live MAE {row['live_mae']:.3f}, "
+                f"shadow MAE {row['shadow_mae']:.3f}, delta {row['delta_mae']:+.3f} "
+                f"({row['gameweek_clusters']} gameweek clusters, {row['n']} forecasts)"
+            )
 
 
 def evaluate(window: int) -> dict:

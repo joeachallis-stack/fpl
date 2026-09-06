@@ -1,9 +1,11 @@
 {
-  "generated_at": "2026-09-06T03:09:44+00:00",
+  "generated_at": "2026-09-06T03:37:49+00:00",
   "question": "how many minutes should the prior season's rate be worth",
   "incumbent": "flat 900 minutes for every player",
   "horizon_gameweeks": 6,
   "primary_metric": "minutes-weighted squared error against future xG/xA per 90",
+  "evidence_status": "exploratory; no candidate is adopted by the live model",
+  "selection_warning": "the minimum-error challenger and its paired statistic use the same 2025/26 samples, so the reported t value is selection-biased and not confirmatory",
   "results": {
     "expected_goals": {
       "metric": "expected_goals",

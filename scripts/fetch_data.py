@@ -4,6 +4,7 @@ Usage:
     python scripts/fetch_data.py              # fetch everything for the configured team
     python scripts/fetch_data.py --gw 3        # also fetch picks for a specific gameweek
     python scripts/fetch_data.py --skip-slow   # bootstrap/fixtures/entry only
+    python scripts/fetch_data.py --skip-slow --skip-optional  # official state only
     python scripts/fetch_data.py --refresh-summaries   # re-pull every player summary
     python scripts/fetch_data.py --refresh-odds        # ignore the two-hour odds cache
 """
@@ -126,7 +127,7 @@ def is_fresh(name: str, max_age_h: float) -> bool:
 
 def fetch_element_summaries(
     bootstrap: dict, owned: list[int], refresh: bool = False
-) -> None:
+) -> bool:
     """Per-gameweek history for the whole player pool, not just the owned squad.
 
     The minutes model needs a role signal for anyone who might start getting minutes,
@@ -155,12 +156,13 @@ def fetch_element_summaries(
         except Exception as exc:  # noqa: BLE001
             print(f"  aborted at player {pid} after {fetched} fetched ({exc})")
             print("  re-run to resume — anything already written is kept")
-            return
+            return False
         fetched += 1
         if fetched % 50 == 0:
             print(f"  {n}/{len(ordered)} ({fetched} fetched, {skipped} already fresh)")
         time.sleep(SUMMARY_DELAY_S)
     print(f"  done: {fetched} fetched, {skipped} already fresh")
+    return True
 
 
 def main() -> None:
@@ -181,6 +183,11 @@ def main() -> None:
         action="store_true",
         help="ignore the two-hour bookmaker-odds cache",
     )
+    parser.add_argument(
+        "--skip-optional",
+        action="store_true",
+        help="skip bookmaker odds and RSS feeds for official-state maintenance runs",
+    )
     args = parser.parse_args()
 
     config = load_config()
@@ -195,19 +202,21 @@ def main() -> None:
 
     # Optional near-term bookmaker probabilities. A missing key or source failure must
     # never block the official FPL refresh that the rest of the project depends on.
-    try:
-        odds.run(bootstrap, fixtures, refresh=args.refresh_odds)
-    except Exception as exc:  # noqa: BLE001 - optional third-party source
-        print(f"odds: refresh failed ({exc}) — keeping any existing cache")
+    if not args.skip_optional:
+        try:
+            odds.run(bootstrap, fixtures, refresh=args.refresh_odds)
+        except Exception as exc:  # noqa: BLE001 - optional third-party source
+            print(f"odds: refresh failed ({exc}) — keeping any existing cache")
 
     # Free-text FPL news (RSS headlines, not official API data). Tied to this same
     # run rather than its own schedule — see fetch_news.py's docstring for why.
     # Third-party sites are flakier than the official API; a dead feed shouldn't
     # abort the rest of the fetch.
-    try:
-        fetch_news.main()
-    except Exception as exc:  # noqa: BLE001
-        print(f"  news: fetch_news.py failed entirely ({exc}) — continuing without it")
+    if not args.skip_optional:
+        try:
+            fetch_news.main()
+        except Exception as exc:  # noqa: BLE001
+            print(f"  news: fetch_news.py failed entirely ({exc}) — continuing without it")
 
     entry = fetch(f"{BASE}/entry/{team_id}/")
     save("entry.json", entry)
@@ -226,7 +235,8 @@ def main() -> None:
     # Per-player fixture history + remaining fixtures, for the whole pool — the minutes
     # model trains on it. See fetch_element_summaries for why it isn't a watchlist.
     owned = [pick["element"] for pick in picks["picks"]] if picks else []
-    fetch_element_summaries(bootstrap, owned, refresh=args.refresh_summaries)
+    if not fetch_element_summaries(bootstrap, owned, refresh=args.refresh_summaries):
+        raise SystemExit("element-summary refresh incomplete; refusing to finalize observations")
     observations.append_finalized()
 
     # Standings for the small leagues — rivals worth knowing about, not sponsor leagues.

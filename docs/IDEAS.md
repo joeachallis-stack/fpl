@@ -87,21 +87,29 @@ scores. The same hourly job now also resolves every finalized gameweek whose min
 projections or journal record is still unresolved, then refreshes `data/evaluation.json`.
 The two phases have opposite timing constraints — the freeze can never be redone and the
 resolve can never be early — so resolving runs on every pass regardless of the freeze
-window, and is safe to repeat. Detection is per record (`actual_minutes` populated,
-`actual_points` present, `resolved_at` set) rather than a separate state file, so there is
-nothing to drift out of sync.
+window, and is safe to repeat. Detection uses explicit `resolved_at` markers, with
+non-null actuals only as backward compatibility for older archives. Before setting those
+markers, the job completes a fresh all-player summary pull; an interrupted bulk pull exits
+nonzero and is retried rather than permanently blessing partial actuals.
 
 Consequences accepted deliberately:
 
 - First success wins, so a freeze at T-11h locks in staler team news than T-2h. A
   stale-but-honest forecast beats a hole. Keeping the laptop open near a deadline still
-  produces a better archive.
+  produces a better archive. This is a deliberate safety policy: replace-until-deadline
+  could retain later information, but depends on a correct clock, deadline parser and
+  conditional overwrite guard. Never-overwrite is unconditional and therefore easier to
+  audit. Revisit only with append-only timestamped forecasts, not an overwrite exception.
 - If the freeze lands at T-11h and the real transfer is made at T-1h on late news, the
   decision archive will not match the action taken. That is fine as long as
   `journal.py add` records what was actually done — the mismatch measures what late team
   news is worth.
-- `resolve` is deliberately not automated. It is safe to run late, so it stays manual.
 
+For GW4, implementation changes stop **Thursday 2026-09-10 at 12:30 UTC**, 48 hours
+before the published deadline. The installed hourly agent then runs the same code through
+Saturday. Only documentation edits are allowed in that rehearsal window; any unfinished
+repair is reverted before the cutoff. Inspect `freeze.py --status` and `data/freeze.log`
+without forcing an early real archive.
 Timeline this buys, given the international break (GW5 is 18 Sep, GW6 is 10 Oct): first
 resolved lead-1 error ~15 Sep, six lead-1 samples ~2 Nov, six samples at every lead
 ~5 Dec. Because each archive spans a six-gameweek horizon, lead-*k* error gets its first
@@ -392,9 +400,11 @@ forecast changed.
 `scripts/evaluate.py` now attributes forecast error instead of reporting only total xP
 error. For each finalized player-fixture it reconstructs actual appearance, goal, assist,
 clean-sheet, goals-conceded, card, DefCon, bonus and save points from the observation
-ledger and the scoring rules frozen with that projection. Own goals, penalty saves and
-penalty misses are reported as an explicit unmodeled residual; any remaining unexplained
-point is a hard accounting warning rather than being silently assigned to a model.
+ledger and the scoring rules frozen with that projection. Own goals and penalty saves are
+reported as an explicit unmodeled residual; penalty-miss deductions are modeled from v9
+onward, while schema-aware evaluation keeps them residual for older archives. Any
+remaining unexplained point is a hard accounting warning rather than being silently
+assigned to a model.
 
 Double-gameweek fixtures are scored separately and then aggregated to the same player-GW
 unit as the forecast. Output separates unweighted all-player diagnostics from metrics
@@ -406,7 +416,7 @@ without returning to the earlier multi-megabyte format. The current 1,236 finali
 observation rows reconstruct official total points exactly. There are no frozen projection
 archives yet, so real forecast-error tables begin with the next pre-deadline archive.
 
-### Prior-season weight — calibrated 2026-09-05, replacing a flat constant
+### Prior-season weight — measured 2026-09-05, retained as a shadow challenger
 
 The GW4 input audit found `effective_prior_minutes` was a flat 900 for every player,
 regardless of how much prior evidence existed. 140 players carried under 900 prior minutes
@@ -437,21 +447,20 @@ flat scheme on future xG:
 Compare `flat_1800` (0.01351) with `evidence_capped_1800` (0.01334): the same ceiling, so
 the gain comes from *scaling with evidence*, not from trusting the prior more in general.
 
-**Honest about strength.** Paired and player-clustered, `evidence_capped_2700` beats flat
-900 by -0.000292 at **t = -1.68** — directional, not significant. It is adopted because it
-is principled and the incumbent constant had no evidence behind it whatsoever, not because
-the margin is established. For assists no scheme mattered (best is t = -0.67), and applying
-this one uniformly costs a non-significant t = +1.08 there; metric-specific rules were
-rejected as an invitation to overfit a single comparison.
+**Audit correction.** `evidence_capped_2700` was chosen as the lowest-error member of the
+grid and then given a paired test on those same 2025/26 samples. Its reported **t = -1.68**
+is therefore selection-biased, just like the earlier ratings headline. For assists the same
+policy costs a non-significant t = +1.08, and the implementation also changed cards and
+fallback saves without evaluating them. The live model has returned to flat 900 for every
+field. `evidence_capped_2700` is frozen alongside it as a decision-inert shadow affecting
+xG and xA only.
 
-Effect on the live GW4 build: Fernandes' xG blend falls 0.424 -> 0.345 and his horizon xP
-24.50 from 25.36. The top two are unchanged, but the middle reorders — Szoboszlai 8th to
-11th, Dewsbury-Hall and João Pedro into the top twelve — which is exactly the band where
-transfers are decided.
+The historical effect remains useful for sizing the challenger, not for claiming it works.
+Adoption is reconsidered only after at least six resolved archives, with paired total-xP
+error primary and xG/xA component error supporting.
 
-Timing was deliberate: model changes are cheapest before any archive exists, because after
-the first freeze every change fragments `evaluate.py`'s version split and resets the count
-toward six comparable archives. `MODEL_VERSION` is now `baseline-v8-priorweight`.
+The shadow shares the live archive rather than creating another model-version split.
+`MODEL_VERSION` is now `baseline-v9-penaltyfix`.
 
 ### Penalty duty — built and wired in 2026-09-05
 
@@ -465,8 +474,9 @@ through an inflated share.
 `scripts/set_pieces.py` splits the team's goal expectation. Penalties are modelled
 explicitly and assigned to whoever is on duty; the remainder is allocated by xG with the
 estimated penalty component removed, which is what stops a taker being paid twice. Total
-is conserved — anything not assignable to a known taker returns to the open-play pool —
-and assists scale with open play only, since a penalty has no assist.
+is conserved — anything not assignable to a known taker returns to the generic goal
+allocation pool — while a separate assistable lambda removes every expected penalty.
+Penalty-miss deductions are assigned with the same duty probabilities.
 
 **The rate came from our own data, not an assumption.** There is no `penalties_scored`
 field anywhere in the API, but `penalties_missed` exists, and missed volume at a known
@@ -475,8 +485,12 @@ cached seasons give 0.088 and 0.094 penalties per team-match at 79% conversion. 
 across seasons, but resting on ~15 events, so the sampling error is wide. A first-choice
 taker playing full matches is worth about 0.074 goals per match from penalties.
 
-Measured effect, rebuilding with and without: **22.0 total absolute horizon xP moved
-across 653 players**, concentrated exactly where it should be.
+The first implementation reported **22.0 total absolute horizon xP moved across 653
+players**, but that number is retracted: it applied availability inside the per-90 penalty
+rate and again when converting the rate to expected goals, and it omitted miss deductions.
+The corrected v9 implementation applies minutes once and will be judged from frozen output.
+
+For audit history only, these are the retracted v7 deltas and must not be used:
 
 | player | order | P(takes) | delta horizon xP |
 |---|---|---|---|
@@ -487,9 +501,10 @@ across 653 players**, concentrated exactly where it should be.
 | Cherki | none | 0 | -0.268 |
 | Gakpo | 3 | 0.024 | -0.222 |
 
-Fernandes gaining only +0.080 despite near-certain duty is the correction working: his xG
-already reflects heavy penalty volume, so stripping it offsets most of the explicit gain.
-Non-takers on high-scoring teams lose slightly because the open-play pool shrank.
+The earlier interpretation of Fernandes' small change is also retracted because it relied
+on the faulty double-minutes calculation. The structural expectation remains that an
+established taker's historical penalty xG offsets much of the explicit allocation, but v9
+must establish the size honestly.
 
 The snapshot change detector immediately paid for itself. Between 4 and 5 September:
 Woltemade joined Juventus on loan and lost Newcastle's duty (1 -> None), Osula was promoted

@@ -28,7 +28,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "projections.json"
 ARCHIVE_DIR = ROOT / "projections"
-MODEL_VERSION = "baseline-v8-priorweight"
+MODEL_VERSION = "baseline-v9-penaltyfix"
+PRIOR_CHALLENGER_ID = "evidence_capped_2700"
 PRIOR_STRENGTH = 5.0
 # Last season is useful early evidence, but not a permanent claim about the player's
 # current role. Ten matches is an explicit starting assumption to recalibrate from the
@@ -39,24 +40,21 @@ PRIOR_STRENGTH = 5.0
 # were also credited with only 900, letting two or three current matches swing a
 # well-established rate by 40%.
 #
-# train_priors.py calibrates this walk-forward on 2025/26 with 2024/25 as the prior, and
-# the whole ordering favours scaling by evidence: every evidence-scaled scheme with a
-# generous cap beat every flat scheme on future xG. Note flat_1800 (0.01351) against
-# evidence_capped_1800 (0.01334) — the same ceiling, so the gain comes from scaling with
-# evidence rather than merely trusting the prior more.
-#
-# Honest about strength: paired and player-clustered, the chosen scheme beats flat 900 by
-# -0.000292 at t = -1.68, which is directional rather than significant. It is adopted
-# because it is principled and the incumbent constant had no evidence behind it at all,
-# not because the margin is established. For assists no scheme mattered (t = -0.67 for
-# the best), and applying this one uniformly costs a non-significant t = +1.08 there;
-# metric-specific rules were rejected as an invitation to overfit one comparison.
+# train_priors.py found a promising evidence-scaled challenger, but selected its cap on
+# the same 2025/26 samples used to report its t statistic. It therefore remains a shadow
+# model until frozen forecasts provide genuinely untouched evidence. The live policy is
+# still the established flat 900 minutes for every field.
 PLAYER_PRIOR_MINUTES = 900.0
 PLAYER_PRIOR_MINUTES_CAP = 2700.0
 
 
 def prior_weight(prior_minutes: float | None) -> float:
-    """Minutes of weight the prior-season anchor earns, from its own sample size."""
+    """Live prior policy: the established flat weight, pending out-of-sample evidence."""
+    return PLAYER_PRIOR_MINUTES
+
+
+def evidence_prior_weight(prior_minutes: float | None) -> float:
+    """Shadow challenger: weight the prior by its evidence, capped at 30 matches."""
     if not prior_minutes or prior_minutes <= 0:
         return PLAYER_PRIOR_MINUTES
     return min(prior_minutes + POSITION_PRIOR_MINUTES, PLAYER_PRIOR_MINUTES_CAP)
@@ -238,7 +236,10 @@ def prior_season_rate(previous: dict | None, field: str, position_rate: float) -
     }
 
 
-def blended_per_90(player: dict, target_gw: int, prior: dict, field: str) -> tuple[float, dict]:
+def blended_per_90(
+    player: dict, target_gw: int, prior: dict, field: str,
+    weight_policy: str = "live",
+) -> tuple[float, dict]:
     """Blend completed current-season evidence with a finite prior-season anchor."""
     rows = history_for(player["id"], target_gw)
     played_minutes = sum(row["minutes"] for row in rows)
@@ -246,12 +247,18 @@ def blended_per_90(player: dict, target_gw: int, prior: dict, field: str) -> tup
     position_rate = prior[f"{field}_per_90"]
     previous = previous_season_for(player["id"])
     player_prior, audit = prior_season_rate(previous, field, position_rate)
-    weight = prior_weight(audit.get("raw_minutes"))
+    if weight_policy == "live":
+        weight = prior_weight(audit.get("raw_minutes"))
+        policy = "flat 900 minutes"
+    elif weight_policy == PRIOR_CHALLENGER_ID:
+        weight = evidence_prior_weight(audit.get("raw_minutes"))
+        policy = "min(prior minutes + position prior, 2700); shadow only"
+    else:
+        raise ValueError(f"unknown prior weight policy: {weight_policy}")
     rate = (observed * 90 + player_prior * weight) / (played_minutes + weight)
     audit.update({
         "effective_prior_minutes": weight,
-        "prior_weight_policy": "min(prior minutes + position prior, cap); "
-                               "calibrated in train_priors.py",
+        "prior_weight_policy": policy,
         "current_total": round(observed, 5),
         "current_minutes": played_minutes,
         "current_per_90": round(observed * 90 / played_minutes, 5) if played_minutes else None,
@@ -533,10 +540,20 @@ def extend_horizon(
             gw = target_gw + offset
             matches = fixture_lookup.get((gw, team_id), [])
             if not matches:
-                gameweeks.append({"gw": gw, "blank": True, "xP": 0.0, "source": "blank"})
+                gameweeks.append({
+                    "gw": gw, "blank": True, "xP": 0.0, "source": "blank",
+                    "shadow_variants": {
+                        variant: {"xP": 0.0, "components": {}}
+                        for variant in record.get("shadow_variants", {})
+                    },
+                })
                 continue
             fixture_forecasts = []
             gw_components = {key: 0.0 for key in record["components"]}
+            gw_shadow_components = {
+                variant: {key: 0.0 for key in record["components"]}
+                for variant in record.get("shadow_variants", {})
+            }
             for fixture, home in matches:
                 opponent_id = fixture["team_a"] if home else fixture["team_h"]
                 odds = exact_odds.get(fixture["id"])
@@ -561,6 +578,9 @@ def extend_horizon(
                 components = dict(record["components"])
                 components["goals"] = record["components"]["goals"] * scale
                 components["assists"] = record["components"]["assists"] * scale
+                components["penalties_missed"] = (
+                    record["components"]["penalties_missed"] * scale
+                )
                 exposure_prediction = goal_exposure.predict(
                     scoring, record["position"], opponent_lam,
                     record["minutes_scenario_input"],
@@ -584,6 +604,23 @@ def extend_horizon(
                 )
                 if save_prediction["expected_points"] is not None:
                     components["saves"] = scoring["saves"] * save_prediction["expected_points"]
+                fixture_shadow_variants = {}
+                for variant, base in record.get("shadow_variants", {}).items():
+                    shadow_components = dict(components)
+                    shadow_components["goals"] = base["components"]["goals"] * scale
+                    shadow_components["assists"] = base["components"]["assists"] * scale
+                    shadow_components["penalties_missed"] = (
+                        base["components"]["penalties_missed"] * scale
+                    )
+                    for key, value in shadow_components.items():
+                        gw_shadow_components[variant][key] += value
+                    fixture_shadow_variants[variant] = {
+                        "components": {
+                            key: round(value, 3)
+                            for key, value in shadow_components.items()
+                        },
+                        "xP": round(sum(shadow_components.values()), 3),
+                    }
                 for key, value in components.items():
                     gw_components[key] += value
                 fixture_forecasts.append({
@@ -606,6 +643,7 @@ def extend_horizon(
                     } if source == "fdr_recent_xg_fallback" else {}),
                     "components": {key: round(value, 3) for key, value in components.items()},
                     "xP": round(sum(components.values()), 3),
+                    "shadow_variants": fixture_shadow_variants,
                 })
             gameweeks.append({
                 "gw": gw,
@@ -613,6 +651,15 @@ def extend_horizon(
                 "fixtures": fixture_forecasts,
                 "components": {key: round(value, 3) for key, value in gw_components.items()},
                 "xP": round(sum(gw_components.values()), 3),
+                "shadow_variants": {
+                    variant: {
+                        "components": {
+                            key: round(value, 3) for key, value in values.items()
+                        },
+                        "xP": round(sum(values.values()), 3),
+                    }
+                    for variant, values in gw_shadow_components.items()
+                },
                 "source": "+".join(sorted({row["source"] for row in fixture_forecasts})),
             })
         record["gameweeks"] = gameweeks
@@ -701,13 +748,19 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                 row["exp_minutes"] / 90
             )
     taker_probabilities: dict[int, float] = {}
+    conditional_taker_probabilities: dict[int, float] = {}
     penalty_order: dict[int, int] = {}
     for team_id, order in team_takers.items():
         for position, element_id in enumerate(order, 1):
             penalty_order[element_id] = position
-        taker_probabilities.update(
-            set_pieces.taker_probabilities(order, on_pitch_by_team.get(team_id, {}))
-        )
+        context = set_pieces.taker_context(order, on_pitch_by_team.get(team_id, {}))
+        taker_probabilities.update({
+            element_id: row["taker_probability"] for element_id, row in context.items()
+        })
+        conditional_taker_probabilities.update({
+            element_id: row["conditional_taker_probability"]
+            for element_id, row in context.items()
+        })
 
     for player in players:
         mins = minute_rows.get(str(player["id"]))
@@ -720,19 +773,40 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         xa_rate, xa_audit = blended_per_90(
             player, target_gw, priors[position], "expected_assists"
         )
+        shadow_xg_rate, shadow_xg_audit = blended_per_90(
+            player, target_gw, priors[position], "expected_goals",
+            PRIOR_CHALLENGER_ID,
+        )
+        shadow_xa_rate, shadow_xa_audit = blended_per_90(
+            player, target_gw, priors[position], "expected_assists",
+            PRIOR_CHALLENGER_ID,
+        )
         # Official xG includes penalties, so an established taker would otherwise be paid
         # twice: once through an inflated share of open play, once through the explicit
         # penalty term below. Remove the estimated penalty component here.
         taker_probability = taker_probabilities.get(player["id"], 0.0)
-        penalty_xg = set_pieces.penalty_xg_per_90(taker_probability)
+        conditional_taker_probability = conditional_taker_probabilities.get(
+            player["id"], 0.0
+        )
+        penalty_xg = set_pieces.penalty_xg_per_90(conditional_taker_probability)
         open_play_xg_rate = max(xg_rate - penalty_xg, 0.0)
+        shadow_open_play_xg_rate = max(shadow_xg_rate - penalty_xg, 0.0)
         weights[player["id"]] = {
             "goal": open_play_xg_rate * mins["exp_minutes"] / 90,
             "assist": xa_rate * mins["exp_minutes"] / 90,
+            "shadow_goal": shadow_open_play_xg_rate * mins["exp_minutes"] / 90,
+            "shadow_assist": shadow_xa_rate * mins["exp_minutes"] / 90,
             "prior_audit": {"expected_goals": xg_audit, "expected_assists": xa_audit},
+            "shadow_prior_audit": {
+                "expected_goals": shadow_xg_audit,
+                "expected_assists": shadow_xa_audit,
+            },
             "penalty": {
                 "order": penalty_order.get(player["id"]),
                 "taker_probability": round(taker_probability, 5),
+                "conditional_taker_probability": round(
+                    conditional_taker_probability, 5
+                ),
                 "xg_removed_per_90": round(penalty_xg, 5),
                 "total_xg_per_90": round(xg_rate, 5),
             },
@@ -742,9 +816,12 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
     for player in players:
         if player["id"] not in weights:
             continue
-        totals = team_weight_totals.setdefault(player["team"], {"goal": 0.0, "assist": 0.0})
-        totals["goal"] += weights[player["id"]]["goal"]
-        totals["assist"] += weights[player["id"]]["assist"]
+        totals = team_weight_totals.setdefault(
+            player["team"],
+            {"goal": 0.0, "assist": 0.0, "shadow_goal": 0.0, "shadow_assist": 0.0},
+        )
+        for key in totals:
+            totals[key] += weights[player["id"]][key]
 
     season_goals = sum(player.get("goals_scored", 0) for player in players)
     season_assists = sum(player.get("assists", 0) for player in players)
@@ -763,18 +840,45 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         assist_weight = weights.get(player["id"], {}).get("assist", 0)
         goal_share = goal_weight / totals.get("goal", 1) if totals.get("goal") else 0
         assist_share = assist_weight / totals.get("assist", 1) if totals.get("assist") else 0
-        # Split the team's expectation: penalties go to whoever is on duty, the rest is
-        # shared out by penalty-stripped xG. Total is conserved, and anything that cannot
-        # be assigned to a known taker returns to the open-play pool.
+        shadow_goal_weight = weights.get(player["id"], {}).get("shadow_goal", 0)
+        shadow_assist_weight = weights.get(player["id"], {}).get("shadow_assist", 0)
+        shadow_goal_share = (
+            shadow_goal_weight / totals.get("shadow_goal", 1)
+            if totals.get("shadow_goal") else 0
+        )
+        shadow_assist_share = (
+            shadow_assist_weight / totals.get("shadow_assist", 1)
+            if totals.get("shadow_assist") else 0
+        )
+        # Split the team's expectation: penalties go to whoever is on duty, and anything
+        # without a known taker returns to a generic goal-allocation pool. A separate
+        # assistable lambda removes every penalty.
         penalty_split = set_pieces.split_team_lambda(
             team_lam, team_takers.get(player["team"], []),
             on_pitch_by_team.get(player["team"], {}),
         )
-        open_play_lam = penalty_split["open_play_lambda"]
+        goal_allocation_lam = penalty_split["goal_allocation_lambda"]
+        assistable_lam = penalty_split["assistable_lambda"]
         exp_penalty_goals = penalty_split["by_player"].get(player["id"], 0.0)
-        exp_goals = open_play_lam * goal_share + exp_penalty_goals
+        unassigned_penalty_misses = (
+            penalty_split["penalty_misses_total"]
+            * (1 - penalty_split["assigned_fraction"])
+        )
+        exp_penalty_misses = (
+            penalty_split["misses_by_player"].get(player["id"], 0.0)
+            + unassigned_penalty_misses * goal_share
+        )
+        exp_goals = goal_allocation_lam * goal_share + exp_penalty_goals
         # A penalty has no assist, so assists scale with open play only.
-        exp_assists = open_play_lam * assisted_goal_rate * assist_share
+        exp_assists = assistable_lam * assisted_goal_rate * assist_share
+        shadow_exp_goals = goal_allocation_lam * shadow_goal_share + exp_penalty_goals
+        shadow_exp_assists = (
+            assistable_lam * assisted_goal_rate * shadow_assist_share
+        )
+        shadow_exp_penalty_misses = (
+            penalty_split["misses_by_player"].get(player["id"], 0.0)
+            + unassigned_penalty_misses * shadow_goal_share
+        )
         p_play = 1 - mins["bands"]["p_zero"]
         p_60 = mins["bands"]["p_60_plus"]
 
@@ -794,6 +898,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "appearance": mins["bands"]["p_1_59"] + 2 * p_60,
             "goals": scoring["goals_scored"][position] * exp_goals,
             "assists": scoring["assists"] * exp_assists,
+            "penalties_missed": scoring["penalties_missed"] * exp_penalty_misses,
             "clean_sheet": exposure_prediction["clean_sheet_points"],
             "goals_conceded": exposure_prediction["goals_conceded_points"],
         }
@@ -821,7 +926,16 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
         if save_prediction["expected_points"] is not None:
             components["saves"] = scoring["saves"] * save_prediction["expected_points"]
             hist["prior_audit"]["saves"] = "trained save-count model; see save_model audit"
+        shadow_components = dict(components)
+        shadow_components["goals"] = scoring["goals_scored"][position] * shadow_exp_goals
+        shadow_components["assists"] = scoring["assists"] * shadow_exp_assists
+        shadow_components["penalties_missed"] = (
+            scoring["penalties_missed"] * shadow_exp_penalty_misses
+        )
         rounded = {key: round(value, 3) for key, value in components.items()}
+        shadow_rounded = {
+            key: round(value, 3) for key, value in shadow_components.items()
+        }
         records[str(player["id"])] = {
             "element": player["id"],
             "web_name": player["web_name"],
@@ -850,8 +964,17 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                     "order": penalty_order.get(player["id"]),
                     "taker_probability": round(
                         penalty_split["taker_probabilities"].get(player["id"], 0.0), 5),
+                    "conditional_taker_probability": round(
+                        penalty_split["taker_context"].get(
+                            player["id"], {}
+                        ).get("conditional_taker_probability", 0.0),
+                        5,
+                    ),
                     "expected_penalty_goals": round(exp_penalty_goals, 5),
-                    "open_play_lambda": round(open_play_lam, 5),
+                    "expected_penalty_misses": round(exp_penalty_misses, 5),
+                    "goal_allocation_lambda": round(goal_allocation_lam, 5),
+                    "assistable_lambda": round(assistable_lam, 5),
+                    "open_play_lambda": round(penalty_split["open_play_lambda"], 5),
                     "team_penalty_goals": round(penalty_split["penalty_goals_total"], 5),
                     "xg_removed_per_90": weights.get(player["id"], {}).get(
                         "penalty", {}).get("xg_removed_per_90"),
@@ -872,6 +995,16 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             },
             "components": rounded,
             "xP": round(sum(components.values()), 3),
+            "shadow_variants": {
+                PRIOR_CHALLENGER_ID: {
+                    "components": shadow_rounded,
+                    "xP": round(sum(shadow_components.values()), 3),
+                    "scope": "expected_goals and expected_assists only",
+                    "prior_audit": weights.get(player["id"], {}).get(
+                        "shadow_prior_audit"
+                    ),
+                }
+            },
             "history_appearances": hist["history_appearances"],
             "component_prior_audit": hist["prior_audit"],
             "goal_exposure_model": exposure_prediction,
@@ -882,7 +1015,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             ),
             "limitations": [
                 "bonus is shrunk current-season history",
-                "rare penalty/own-goal events not modeled",
+                "penalty saves and own goals are not modeled",
                 "player props not yet calibrated",
                 *(["under 3 bookmakers supplied the exact 2.5-goal line"] if fixture["totals_bookmakers"] < 3 else []),
             ],
@@ -904,8 +1037,21 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "position_prior_minutes": POSITION_PRIOR_MINUTES,
             "prior_policy": (
                 "latest official history_past rate shrunk 450 minutes toward position; "
-                "then weighted as 900 minutes against completed current-season evidence"
+                "then weighted as a flat 900 minutes against completed current-season evidence"
             ),
+            "shadow_models": {
+                PRIOR_CHALLENGER_ID: {
+                    "status": "not used by decisions",
+                    "scope": ["expected_goals", "expected_assists"],
+                    "prior_policy": (
+                        "min(previous-season minutes + 450 position-prior minutes, 2700)"
+                    ),
+                    "adoption_policy": (
+                        "review after at least six resolved archives; frozen total-xP error "
+                        "is primary and component error is supporting evidence"
+                    ),
+                }
+            },
             "history_policy": "fixture finished or finished_provisional",
             "goal_model": "independent Poisson fitted to de-vigged 1X2 and O/U 2.5",
             "goal_exposure_model": goal_exposure.MODEL_VERSION,
@@ -919,7 +1065,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
                 "red-card continuation of goals-conceded liability is not jointly simulated",
             ],
             "scoring_rules": scoring,
-            "unmodeled": ["penalty saves", "penalty misses", "own goals"],
+            "unmodeled": ["penalty saves", "own goals"],
             "horizon": horizon,
             "previous_gw_completeness": history_completeness(
                 load(DATA_DIR / "fixtures.json"), target_gw),
@@ -990,15 +1136,43 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
     return payload
 
 
+def validate_component_totals(payload: dict, tolerance: float = 0.02) -> None:
+    """Refuse an archive whose frozen component vectors do not reconstruct its xP."""
+    for record in payload["players"].values():
+        candidates = [("live", record)] + list(record.get("shadow_variants", {}).items())
+        for label, candidate in candidates:
+            components = candidate.get("components")
+            if (
+                components is not None
+                and abs(sum(components.values()) - candidate["xP"]) > tolerance
+            ):
+                raise ValueError(
+                    f"{record['web_name']} {label} components do not reconstruct xP"
+                )
+        for week in record.get("gameweeks", []):
+            candidates = [("live", week)] + list(week.get("shadow_variants", {}).items())
+            for label, candidate in candidates:
+                components = candidate.get("components")
+                if (
+                    components is not None
+                    and abs(sum(components.values()) - candidate["xP"]) > tolerance
+                ):
+                    raise ValueError(
+                        f"{record['web_name']} GW{week['gw']} {label} components "
+                        "do not reconstruct xP"
+                    )
+
+
 def archive(payload: dict) -> None:
     path = ARCHIVE_DIR / f"gw{payload['meta']['gw']:02d}.json"
     display_path = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
     if path.exists():
         print(f"{display_path} already exists — not overwriting")
         return
+    validate_component_totals(payload)
     path.parent.mkdir(parents=True, exist_ok=True)
     frozen = json.loads(json.dumps(payload))
-    frozen["meta"]["archive_schema_version"] = 2
+    frozen["meta"]["archive_schema_version"] = 3
     sample = next(iter(payload["players"].values()))
     sample_components = sample.get("components")
     if sample_components is None:
@@ -1029,6 +1203,20 @@ def archive(payload: dict) -> None:
                                 for key in frozen["meta"]["component_order"]
                             ]
                         } if "components" in row else {}),
+                        "shadow_variants": {
+                            variant: {
+                                "xP": candidate["xP"],
+                                **({
+                                    "component_values": [
+                                        candidate["components"][key]
+                                        for key in frozen["meta"]["component_order"]
+                                    ]
+                                } if candidate.get("components") else {}),
+                            }
+                            for variant, candidate in row.get(
+                                "shadow_variants", {}
+                            ).items()
+                        },
                     }
                     for row in record["gameweeks"]
                 ],
@@ -1044,6 +1232,10 @@ def resolve(gw: int) -> None:
     path = ARCHIVE_DIR / f"gw{gw:02d}.json"
     if not path.exists():
         raise SystemExit(f"no archived projections for GW{gw}")
+    bootstrap = load(DATA_DIR / "bootstrap.json")
+    event = next((row for row in bootstrap["events"] if row["id"] == gw), None)
+    if not event or not (event.get("finished") and event.get("data_checked")):
+        raise SystemExit(f"GW{gw} is not finalized and data-checked — refusing early resolve")
     payload = load(path)
     rows = list(payload["players"].values())
     resolved = []
@@ -1052,6 +1244,7 @@ def resolve(gw: int) -> None:
         if played:
             row["actual_points"] = sum(item["total_points"] for item in played)
             resolved.append(row)
+    payload["meta"]["resolved_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     path.write_text(json.dumps(payload, separators=(",", ":")) + "\n")
     if resolved:
         mae = sum(abs(row["actual_points"] - row["xP"]) for row in resolved) / len(resolved)

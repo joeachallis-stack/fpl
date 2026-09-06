@@ -567,11 +567,16 @@ def cmd_resolve(gw: int) -> None:
     path = archive_path(gw)
     if not path.exists():
         raise SystemExit(f"no archive for GW{gw} — run `minutes.py archive` before the deadline")
+    bootstrap = load("bootstrap.json")
+    event = next((row for row in bootstrap["events"] if row["id"] == gw), None)
+    if not event or not (event.get("finished") and event.get("data_checked")):
+        raise SystemExit(f"GW{gw} is not finalized and data-checked — refusing early resolve")
 
     with open(path) as f:
         rows = [json.loads(line) for line in f if line.strip()]
 
     resolved = missing = 0
+    resolved_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for row in rows:
         summary = DATA_DIR / f"element_summary/{row['element']}.json"
         if not summary.exists():
@@ -588,6 +593,11 @@ def cmd_resolve(gw: int) -> None:
         row["actual_minutes"] = actual
         row["actual_band"] = band(actual)
         resolved += 1
+
+    # Completion is distinct from having a score: after a complete refresh, a missing
+    # history row is a legitimate unscored player rather than evidence this never ran.
+    for row in rows:
+        row["resolved_at"] = resolved_at
 
     with open(path, "w") as f:
         for row in rows:

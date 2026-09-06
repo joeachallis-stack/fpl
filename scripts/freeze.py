@@ -11,7 +11,7 @@ the next deadline, exits immediately if it is far away, and otherwise archives o
 is missing. Repeated runs are safe, and a run missed while the laptop slept costs
 nothing because the next one catches up.
 
-Running from FREEZE_LEAD_HOURS out means the *latest successful* attempt is what gets
+Running from FREEZE_LEAD_HOURS out means the *first successful* attempt is what gets
 kept. Freezing at T-11h on staler team news is worse than freezing at T-2h, and far
 better than not freezing at all.
 
@@ -118,9 +118,13 @@ def minutes_unresolved(gw: int) -> bool:
     path = ROOT / "minutes" / f"gw{gw:02d}.jsonl"
     if not path.exists():
         return False
-    # resolve() cannot fill every row — a player with no history stays None — so the
-    # question is whether it has run at all, not whether every row is populated.
-    return not any(row.get("actual_minutes") is not None for row in _json_rows(path))
+    rows = _json_rows(path)
+    # New archives carry an explicit completion marker on every row. Fall back to actual
+    # minutes for archives resolved before that marker existed.
+    return not any(
+        row.get("resolved_at") or row.get("actual_minutes") is not None
+        for row in rows
+    )
 
 
 def projections_unresolved(gw: int) -> bool:
@@ -128,7 +132,14 @@ def projections_unresolved(gw: int) -> bool:
     if not path.exists():
         return False
     payload = json.loads(path.read_text())
-    return not any("actual_points" in row for row in payload.get("players", {}).values())
+    if payload.get("meta", {}).get("resolved_at"):
+        return False
+    # Archives are born with actual_points=null. Key presence therefore says nothing.
+    # The non-null fallback recognizes archives resolved before meta.resolved_at existed.
+    return not any(
+        row.get("actual_points") is not None
+        for row in payload.get("players", {}).values()
+    )
 
 
 def journal_unresolved(gw: int) -> bool:
@@ -160,6 +171,16 @@ def resolve_settled() -> bool:
     pending = pending_resolves()
     if not pending:
         return False
+    # Resolving player records needs every element-summary updated through the finalized
+    # round. Do one complete pull before writing irreversible resolved markers.
+    ok, output = run_script(
+        "fetch_data.py", "--refresh-summaries", "--skip-optional"
+    )
+    if not ok:
+        log("  resolve input refresh FAILED — "
+            f"{output.splitlines()[-1] if output else 'no output'}")
+        return False
+    pending = pending_resolves()
     for gw, name, script in pending:
         ok, output = run_script(script, "resolve", "--gw", str(gw))
         if ok:
@@ -180,13 +201,33 @@ def main() -> None:
     parser.add_argument("--resolve-only", action="store_true", help="skip the freeze phase")
     args = parser.parse_args()
 
+    if args.status and not (DATA_DIR / "bootstrap.json").exists():
+        print("no bootstrap cache — status unavailable; run scripts/fetch_data.py")
+        return
+
     if not (DATA_DIR / "bootstrap.json").exists():
         log("no bootstrap cache — running a full fetch first")
-        run_script("fetch_data.py")
+        ok, output = run_script("fetch_data.py")
+        if not ok:
+            log(f"initial fetch FAILED — {output.splitlines()[-1] if output else 'no output'}")
+            return
+
+    # Discover deadline rollovers and newly data-checked gameweeks even when no freeze is
+    # imminent. A lightweight refresh avoids the several-hundred-request summary pull.
+    if not args.status and cache_age_hours() > CACHE_MAX_AGE_H:
+        age = cache_age_hours()
+        ok, output = run_script("fetch_data.py", "--skip-slow", "--skip-optional")
+        if ok:
+            log(f"refreshed official state (cache was {age:.1f}h old)")
+        else:
+            log(f"state refresh failed, continuing on a {age:.1f}h-old cache: "
+                f"{output.splitlines()[-1] if output else 'no output'}")
 
     upcoming = next_deadline()
     if not upcoming:
-        log("no upcoming deadline (season over or awaiting finalization) — nothing to do")
+        log("no upcoming deadline (season over or awaiting finalization)")
+        if resolve_settled():
+            log("resolved settled gameweeks")
         return
     gw, deadline = upcoming
     hours = (deadline - datetime.now(timezone.utc)).total_seconds() / 3600
@@ -217,15 +258,6 @@ def main() -> None:
         return
 
     log(f"GW{gw} deadline in {hours:.1f}h — freezing {', '.join(n for n, _ in outstanding)}")
-
-    age = cache_age_hours()
-    if age > CACHE_MAX_AGE_H:
-        ok, output = run_script("fetch_data.py")
-        if not ok:
-            # Freezing on a stale cache still beats no archive at all.
-            log(f"fetch_data failed, continuing on a {age:.1f}h-old cache: {output[-300:]}")
-        else:
-            log(f"refreshed inputs (cache was {age:.1f}h old)")
 
     for name, script in outstanding:
         ok, output = run_script(script, "archive")

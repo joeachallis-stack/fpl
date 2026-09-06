@@ -283,6 +283,11 @@ def main() -> None:
         "incumbent": "flat 900 minutes for every player",
         "horizon_gameweeks": HORIZON,
         "primary_metric": "minutes-weighted squared error against future xG/xA per 90",
+        "evidence_status": "exploratory; no candidate is adopted by the live model",
+        "selection_warning": (
+            "the minimum-error challenger and its paired statistic use the same 2025/26 "
+            "samples, so the reported t value is selection-biased and not confirmatory"
+        ),
         "results": {},
     }
     for metric in metrics:
@@ -306,7 +311,7 @@ def main() -> None:
         paired = result["paired_vs_incumbent"]
         print(f"  paired vs incumbent ({paired['challenger']}): "
               f"mean {paired['value']:+.6f}, clustered t {paired['t']:+.2f} "
-              f"over {paired['clusters']} players")
+              f"over {paired['clusters']} players [exploratory: same-sample selection]")
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(payload, indent=2) + "\n")

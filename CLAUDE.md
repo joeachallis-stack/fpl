@@ -53,8 +53,9 @@ When Joe asks "what should I do this week" / "review my team" / similar:
    for anything still outstanding before making this week's call.
 6b. Freeze the minutes model's predictions with `scripts/minutes.py archive` — **before
    the deadline, every week**. It refuses to overwrite an existing file, because a
-   prediction you can rewrite afterwards isn't one. Once a gameweek has settled, run
-   `scripts/minutes.py resolve --gw N` for its error. This is the same discipline as
+   prediction you can rewrite afterwards isn't one. The hourly agent resolves it after
+   settlement; `scripts/minutes.py resolve --gw N` remains available for a manual retry.
+   This is the same discipline as
    the journal one step up, aimed at the model rather than the decision: minutes is the
    highest-leverage input and the one most likely to be quietly wrong, and the measured
    error is what decides whether the LLM/news override layer is worth building at all.
@@ -63,13 +64,17 @@ When Joe asks "what should I do this week" / "review my team" / similar:
    `scripts/projections.py archive` before the deadline. Resolve the prior week with
    `scripts/projections.py resolve --gw N`, and run `scripts/evaluate.py` for rolling,
    lead-time-specific error. This is a measured baseline, not an oracle: it refuses a
-   partial next gameweek of odds and records sparse-data limits.
+   partial next gameweek of odds and records sparse-data limits. The hourly agent normally
+   runs projection resolution and evaluation after settlement; the commands remain safe
+   manual retries.
 6d. Run `scripts/decisions.py` to compare hold with the top exact 1-5 transfer squads and,
    when available, the model-optimal Free Hit and Wildcard squads. Prices constrain
    feasibility but earn no points; vice/autosub cover, transfer stock and uncertainty
    remain visible rather than being hidden in the ranking. Once the recommendation is
    ready, freeze the search with `scripts/decisions.py archive`; it will not overwrite an
-   existing gameweek archive.
+   existing gameweek archive. Shadow projection fields are evaluation-only:
+   `decisions.py` removes every `shadow_*` field before optimization. Do not bypass that
+   boundary or use shadow xP in transfer, lineup, captaincy or chip selection.
 6e. Run the `gameweek-brief` skill for what the FPL creators are saying — extracted from
    the YouTube transcripts, name-resolved against the roster, and claim-checked against
    the match record. It reports consensus and dissent per player rather than a wall of

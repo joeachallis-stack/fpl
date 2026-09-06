@@ -2,6 +2,9 @@
 
 Updated: 2026-09-05
 
+> Point-in-time record. Archive schema v3 and modeled penalty misses are documented in
+> [`HANDOFF_2026_09_05_CODEX_AUDIT_REPAIRS.md`](HANDOFF_2026_09_05_CODEX_AUDIT_REPAIRS.md).
+
 ## Where this session stopped
 
 This session completed one coherent slice: the projection model can now be evaluated

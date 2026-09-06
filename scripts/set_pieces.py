@@ -86,6 +86,23 @@ def load_takers(bootstrap: dict) -> dict[int, list[int]]:
     }
 
 
+def taker_context(order: list[int], on_pitch: dict[int, float]) -> dict[int, dict[str, float]]:
+    """Conditional and unconditional penalty-taking probabilities for each listed player."""
+    context: dict[int, dict[str, float]] = {}
+    higher_choices_absent = 1.0
+    for element_id in order:
+        share = max(0.0, min(1.0, on_pitch.get(element_id, 0.0)))
+        context[element_id] = {
+            "on_pitch_share": share,
+            # Under the existing independence approximation, this is the probability that
+            # every higher-ranked taker is absent, conditional on this player being on.
+            "conditional_taker_probability": higher_choices_absent,
+            "taker_probability": higher_choices_absent * share,
+        }
+        higher_choices_absent *= 1 - share
+    return context
+
+
 def taker_probabilities(order: list[int], on_pitch: dict[int, float]) -> dict[int, float]:
     """Probability each listed player takes a penalty the team is awarded.
 
@@ -95,15 +112,19 @@ def taker_probabilities(order: list[int], on_pitch: dict[int, float]) -> dict[in
 
     Probabilities deliberately do not sum to one: when nobody on the list is playing,
     someone still takes the penalty and we do not know who. The caller returns that
-    remainder to the open-play pool rather than inventing a taker.
+    remainder to the generic goal-allocation pool rather than inventing a taker, while
+    still excluding it from assists.
     """
-    probabilities: dict[int, float] = {}
-    remaining = 1.0
-    for element_id in order:
-        share = max(0.0, min(1.0, on_pitch.get(element_id, 0.0)))
-        probabilities[element_id] = remaining * share
-        remaining *= 1 - share
-    return probabilities
+    return {
+        element_id: row["taker_probability"]
+        for element_id, row in taker_context(order, on_pitch).items()
+    }
+
+
+def team_penalty_awards(team_goal_lambda: float) -> float:
+    """Expected penalties awarded to a team in one fixture."""
+    scale = team_goal_lambda / LEAGUE_GOALS_PER_TEAM_MATCH if LEAGUE_GOALS_PER_TEAM_MATCH else 1.0
+    return PENALTY_RATE_PER_TEAM_MATCH * max(scale, 0.0)
 
 
 def team_penalty_goals(team_goal_lambda: float) -> float:
@@ -113,18 +134,23 @@ def team_penalty_goals(team_goal_lambda: float) -> float:
     penalties. That proportionality is untested — the alternative, a flat league rate, is
     one line away if it ever fails an ablation.
     """
-    scale = team_goal_lambda / LEAGUE_GOALS_PER_TEAM_MATCH if LEAGUE_GOALS_PER_TEAM_MATCH else 1.0
-    return PENALTY_RATE_PER_TEAM_MATCH * max(scale, 0.0) * PENALTY_CONVERSION
+    return team_penalty_awards(team_goal_lambda) * PENALTY_CONVERSION
 
 
-def penalty_xg_per_90(taker_probability: float) -> float:
+def penalty_xg_per_90(conditional_taker_probability: float) -> float:
     """Penalty xG already inside a player's official per-90 xG, to be removed from it.
 
     Assumes current duty held across the history the rate was measured over. That is
     wrong exactly when duty has changed, which is why `order_changes` exists — a change
     is the signal to distrust this correction for that player.
     """
-    return PENALTY_RATE_PER_TEAM_MATCH * PENALTY_CONVERSION * taker_probability
+    # This is a rate conditional on the player being on the pitch. Their minutes exposure
+    # is applied later when the per-90 rate becomes an expected goal weight.
+    return (
+        PENALTY_RATE_PER_TEAM_MATCH
+        * PENALTY_CONVERSION
+        * conditional_taker_probability
+    )
 
 
 def split_team_lambda(
@@ -132,21 +158,37 @@ def split_team_lambda(
 ) -> dict:
     """Divide a team's goal expectation into assigned penalties and open play.
 
-    Total is conserved: whatever cannot be assigned to a known taker goes back into the
-    open-play pool, so no expectation is created or lost.
+    Total goals are conserved: whatever cannot be assigned to a known taker goes back into
+    the generic goal-allocation pool. The separate assistable lambda removes all penalties.
     """
-    penalty_goals = team_penalty_goals(team_goal_lambda)
-    probabilities = taker_probabilities(order, on_pitch)
+    penalty_awards = team_penalty_awards(team_goal_lambda)
+    penalty_goals = penalty_awards * PENALTY_CONVERSION
+    penalty_misses = penalty_awards * (1 - PENALTY_CONVERSION)
+    context = taker_context(order, on_pitch)
+    probabilities = {
+        element_id: row["taker_probability"] for element_id, row in context.items()
+    }
     assigned_fraction = sum(probabilities.values())
     assigned = penalty_goals * assigned_fraction
     return {
+        "penalty_awards_total": penalty_awards,
         "penalty_goals_total": penalty_goals,
+        "penalty_misses_total": penalty_misses,
         "penalty_goals_assigned": assigned,
-        "open_play_lambda": max(team_goal_lambda - assigned, 0.0),
+        # Unknown takers still score goals, so unassigned penalty goals return to the
+        # generic goal-allocation pool. They remain penalties and are never assistable.
+        "goal_allocation_lambda": max(team_goal_lambda - assigned, 0.0),
+        "assistable_lambda": max(team_goal_lambda - penalty_goals, 0.0),
+        "open_play_lambda": max(team_goal_lambda - penalty_goals, 0.0),
         "taker_probabilities": probabilities,
+        "taker_context": context,
         "assigned_fraction": assigned_fraction,
         "by_player": {
             element_id: penalty_goals * probability
+            for element_id, probability in probabilities.items()
+        },
+        "misses_by_player": {
+            element_id: penalty_misses * probability
             for element_id, probability in probabilities.items()
         },
     }

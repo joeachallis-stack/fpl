@@ -41,6 +41,31 @@ def load(path: Path) -> dict | list:
     return json.loads(path.read_text())
 
 
+def live_optimizer_players(projection_payload: dict) -> dict[int, dict]:
+    """Return a decision-safe copy with every evaluation-only shadow field removed.
+
+    Shadow forecasts are deliberately frozen beside the live forecast so their errors
+    can be paired later. They must not be visible to squad selection: relying on each
+    optimizer call site to remember which xP field is live would make that separation a
+    convention rather than an invariant.
+    """
+    def live_only(value):
+        if isinstance(value, dict):
+            return {
+                key: live_only(item)
+                for key, item in value.items()
+                if not str(key).startswith("shadow_")
+            }
+        if isinstance(value, list):
+            return [live_only(item) for item in value]
+        return value
+
+    return {
+        int(element): live_only(row)
+        for element, row in projection_payload["players"].items()
+    }
+
+
 def current_context(bootstrap: dict) -> dict:
     entry = load(DATA_DIR / "entry.json")
     gw = entry.get("current_event")
@@ -480,11 +505,11 @@ def build(horizon: int = 6, include_chips: bool = True) -> dict:
     projection_payload = load(DATA_DIR / "projections.json")
     if projection_payload["meta"]["horizon"] < horizon:
         projection_payload = projections.build(horizon=horizon)
-    players = {int(element): row for element, row in projection_payload["players"].items()}
+    players = live_optimizer_players(projection_payload)
     if projection_payload["meta"]["horizon"] != horizon:
         # Rebuild rather than silently truncate a differently discounted artifact.
         projection_payload = projections.build(horizon=horizon)
-        players = {int(element): row for element, row in projection_payload["players"].items()}
+        players = live_optimizer_players(projection_payload)
     context = current_context(bootstrap)
     current = set(context["squad"])
     missing = current - players.keys()
@@ -557,6 +582,7 @@ def build(horizon: int = 6, include_chips: bool = True) -> dict:
             "candidate_players": len(players),
             "excluded_players": len(bootstrap["elements"]) - len(players),
             "optimizer": "SciPy MILP/HiGHS; exact planned-XI/captain objective with a 1e-7 squad-depth tiebreak",
+            "projection_input_policy": "live fields only; shadow_* fields are recursively removed before squad selection",
             "availability_adjustment": "vice fallback plus FPL-style autosub expectation for the displayed squad under independent appearances; reported separately and excluded from rankings",
             "uncertainty_policy": "marginal leads default to hold; no measured decision margin available yet",
         },

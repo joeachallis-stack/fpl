@@ -445,8 +445,9 @@ adjusted by recent team xG attack/defence factors shrunk five matches toward lea
 average. The five rates for each venue are constrained to be monotonic, so a harder FDR
 cannot imply a higher base scoring rate. Market team-side counts, raw and fitted rates,
 and a sparse flag for buckets with fewer than three observations are retained globally
-and on every fallback fixture. Every horizon row labels its source. It does not yet model penalty saves,
-penalty misses or own goals, and does not ingest player props until those prices can be
+and on every fallback fixture. Every horizon row labels its source. It does not yet model
+penalty saves or own goals; penalty misses are included with explicit penalty duty from
+model v9. It does not ingest player props until those prices can be
 calibrated without mislabeling margined inverse odds as fair probabilities. Bonus is a
 shrunk empirical expectation, not a reconstruction of the interdependent BPS contest;
 the frozen ledger will determine whether that approximation earns its place.

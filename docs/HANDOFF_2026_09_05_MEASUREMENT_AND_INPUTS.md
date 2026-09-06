@@ -2,7 +2,12 @@
 
 Written: 2026-09-05, for Codex review.
 Picks up from [`HANDOFF_COMPONENT_EVALUATION.md`](HANDOFF_COMPONENT_EVALUATION.md).
-16 commits, `b07d36a..88dc08b`. 20 tests pass; all scripts compile.
+17 commits, `b07d36a..1310592`. 20 tests pass; all scripts compile.
+
+> Subsequent audit repairs are tracked in
+> [`HANDOFF_2026_09_05_CODEX_AUDIT_REPAIRS.md`](HANDOFF_2026_09_05_CODEX_AUDIT_REPAIRS.md).
+> This remains the point-in-time record that was reviewed; its v8 live-model and scheduler
+> descriptions have been superseded.
 
 ## Read this first: where we ignored your advice
 
