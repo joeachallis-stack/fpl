@@ -74,6 +74,7 @@ class DecisionRoomHandler(BaseHTTPRequestHandler):
             self._run_action(
                 [sys.executable, "scripts/projections.py"],
                 [sys.executable, "scripts/decisions.py"],
+                [sys.executable, "scripts/horizon_compare.py"],
             )
             return
         if path == "/api/actions/journal":

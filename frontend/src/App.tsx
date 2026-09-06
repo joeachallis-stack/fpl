@@ -301,7 +301,7 @@ function OptionsBoard({ analysis, selectedPlan, customPlan, onSelectPlan, onCust
     <aside className="options-board">
       <header>
         <div><span className="eyebrow">Shortlist</span><h2>Options worth comparing</h2></div>
-        <span className="candidate-note">same candidate set</span>
+        <span className="candidate-note">{analysis.meta.comparisonPolicy.startsWith('Independent') ? 'independent searches' : 'same candidate set'}</span>
       </header>
       <div className="option-columns" aria-hidden="true">
         <span>Move</span><span>2 GW</span><span>6 GW</span><span>Cash</span>

@@ -607,9 +607,13 @@ counts and model-version boundaries.
 
 ## Remaining implementation decisions
 
-1. Decide whether to generate a separately optimized two-week artifact. V1 currently
-   re-scores the coherent six-week candidate set and labels that limitation.
-2. Decide whether a confirmed “Submitted team” is entered manually or deferred until the
+1. Decide whether a confirmed “Submitted team” is entered manually or deferred until the
    following deadline proves it through public picks.
-3. Decide whether the one-click macOS `.command` launcher is sufficient or worth packaging
+2. Decide whether the one-click macOS `.command` launcher is sufficient or worth packaging
    as a native `.app` after the weekly flow has been used in practice.
+
+The independent horizon comparison was implemented on 2026-09-06. It takes an explicit
+two-week view of the same canonical weekly projections and runs a separate exact optimizer,
+without changing the archive-producing build functions. Its temporary optimizer writes are
+isolated, canonical caches and archives are hashed before and after, and the frontend rejects
+the comparison artifact as soon as its source projection or decision hash becomes stale.

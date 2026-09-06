@@ -58,3 +58,26 @@ def test_current_workspace_build_is_coherent_and_shadow_free():
     assert all(len(row["gameweeks"]) == 38 for row in analysis["fixtureWall"]["rows"])
     assert not contains_shadow(analysis["plans"])
     assert not contains_shadow(analysis["players"])
+
+
+def test_independent_comparison_requires_matching_canonical_hashes(tmp_path, monkeypatch):
+    projections = tmp_path / "projections.json"
+    decisions = tmp_path / "decisions.json"
+    projections.write_text('{"projection": true}')
+    decisions.write_text('{"decision": true}')
+    comparison = {
+        "schemaVersion": "horizon-comparison-v1",
+        "meta": {
+            "targetGw": 4,
+            "horizons": [2, 6],
+            "canonicalProjectionsSha256": frontend_data._sha256(projections),
+            "canonicalDecisionsSha256": frontend_data._sha256(decisions),
+        },
+    }
+    (tmp_path / "horizon_comparison.json").write_text(json.dumps(comparison))
+    monkeypatch.setattr(frontend_data, "DATA", tmp_path)
+
+    assert frontend_data._load_independent_comparison(4) == comparison
+
+    decisions.write_text('{"decision": "changed"}')
+    assert frontend_data._load_independent_comparison(4) is None

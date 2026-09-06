@@ -67,6 +67,10 @@ def _iso_mtime(path: Path) -> str | None:
     return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()
 
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _week_projection(player: dict, gw: int) -> dict | None:
     return next((row for row in player.get("gameweeks", []) if row.get("gw") == gw), None)
 
@@ -187,14 +191,7 @@ def _plan_view(
     hold_two = _discounted_plan_score(hold, 2, discount)
     two_edge = round(two_score - hold_two - float(plan.get("points_hit", 0)), 2)
     six_edge = round(float(plan.get("gain_after_hits", 0)), 2)
-    if plan_id == "hold":
-        stability = "Baseline"
-    elif (two_edge > 0) != (six_edge > 0):
-        stability = "Material flip"
-    elif abs(six_edge - two_edge) >= 4:
-        stability = "Tail-sensitive"
-    else:
-        stability = "Stable leader"
+    stability = _stability(plan_id, two_edge, six_edge)
     return {
         "id": plan_id,
         "label": _plan_label(plan),
@@ -212,6 +209,65 @@ def _plan_view(
         "lineup": _lineup_view(plan["lineups"][0]),
         "squad": plan["squad"],
         "hinge": _plan_hinge(plan, projections, discount),
+    }
+
+
+def _stability(plan_id: str, two_edge: float, six_edge: float) -> str:
+    if plan_id == "hold":
+        return "Baseline"
+    if (two_edge > 0) != (six_edge > 0):
+        return "Material flip"
+    if abs(six_edge - two_edge) >= 4:
+        return "Tail-sensitive"
+    return "Stable leader"
+
+
+def _load_independent_comparison(target_gw: int) -> dict | None:
+    """Use the optional comparison only while it matches the canonical artifacts."""
+    path = DATA / "horizon_comparison.json"
+    if not path.exists():
+        return None
+    try:
+        payload = load_json(path)
+    except AnalysisInputError:
+        return None
+    meta = payload.get("meta", {})
+    if (
+        payload.get("schemaVersion") != "horizon-comparison-v1"
+        or meta.get("targetGw") != target_gw
+        or meta.get("horizons") != [2, 6]
+        or meta.get("canonicalProjectionsSha256") != _sha256(DATA / "projections.json")
+        or meta.get("canonicalDecisionsSha256") != _sha256(DATA / "decisions.json")
+    ):
+        return None
+    return live_only(payload)
+
+
+def _independent_plan_view(candidate: dict, projections: dict[str, dict], discount: float) -> dict:
+    plan = candidate["plan"]
+    plan_id = candidate["id"]
+    two = candidate["scores"]["2"]
+    six = candidate["scores"]["6"]
+    two_edge = round(float(two["gain_after_hits"]), 2)
+    six_edge = round(float(six["gain_after_hits"]), 2)
+    return {
+        "id": plan_id,
+        "label": _plan_label(plan),
+        "state": "last_official" if plan_id == "hold" else "selected_scenario",
+        "transferCount": plan.get("transfer_count", 0),
+        "transfersOut": plan.get("transfers_out", []),
+        "transfersIn": plan.get("transfers_in", []),
+        "cashAfter": plan.get("cash_after"),
+        "pointsHit": plan.get("points_hit", 0),
+        "nextFreeTransfers": plan.get("next_gw_free_transfers"),
+        "twoWeekEdge": two_edge,
+        "sixWeekEdge": six_edge,
+        "sixWeekXP": six.get("horizon_xP"),
+        "stability": _stability(plan_id, two_edge, six_edge),
+        "lineup": _lineup_view(six["lineups"][0]),
+        "squad": plan["squad"],
+        "hinge": _plan_hinge(plan, projections, discount),
+        "sourceHorizons": candidate.get("sourceHorizons", []),
     }
 
 
@@ -381,19 +437,36 @@ def build_analysis(root: Path = ROOT) -> dict:
         teams = {row["id"]: row for row in bootstrap["teams"]}
         hold = decisions["hold"]
         discount = float(decisions["meta"]["horizon_discount"])
-        plan_candidates = []
-        for count, plans in decisions.get("transfers", {}).items():
-            for index, plan in enumerate(plans):
-                plan_candidates.append((f"transfer-{count}-{index + 1}", plan))
-        plan_candidates.sort(key=lambda item: float(item[1].get("gain_after_hits", -999)), reverse=True)
-        selected_candidates = plan_candidates[:3]
-        plans = [_plan_view(hold, "hold", hold, projections, discount)] + [
-            _plan_view(plan, plan_id, hold, projections, discount)
-            for plan_id, plan in selected_candidates
-        ]
+        comparison = _load_independent_comparison(target_gw)
+        if comparison:
+            selected_comparisons = comparison.get("candidates", [])[:3]
+            plans = [
+                _independent_plan_view(comparison["hold"], projections, discount),
+                *(
+                    _independent_plan_view(candidate, projections, discount)
+                    for candidate in selected_comparisons
+                ),
+            ]
+            selected_plan_payloads = [candidate["plan"] for candidate in selected_comparisons]
+            comparison_policy = "Independent exact searches over two and six gameweeks"
+        else:
+            plan_candidates = []
+            for count, candidate_plans in decisions.get("transfers", {}).items():
+                for index, plan in enumerate(candidate_plans):
+                    plan_candidates.append((f"transfer-{count}-{index + 1}", plan))
+            plan_candidates.sort(
+                key=lambda item: float(item[1].get("gain_after_hits", -999)), reverse=True
+            )
+            selected_candidates = plan_candidates[:3]
+            plans = [_plan_view(hold, "hold", hold, projections, discount)] + [
+                _plan_view(plan, plan_id, hold, projections, discount)
+                for plan_id, plan in selected_candidates
+            ]
+            selected_plan_payloads = [plan for _, plan in selected_candidates]
+            comparison_policy = "Same six-week candidate set rescored over two and six weeks"
 
         player_ids = set(decisions["current"]["squad"])
-        for _, plan in selected_candidates:
+        for plan in selected_plan_payloads:
             player_ids.update(plan["squad"])
         players = {
             str(player_id): _player_view(player_id, elements, projections, teams, target_gw)
@@ -454,6 +527,8 @@ def build_analysis(root: Path = ROOT) -> dict:
                 minutes if name == "minutes" else projection_payload if name == "projections" else decisions
             ]
         }
+        if comparison:
+            source_times["horizonComparison"] = comparison["meta"].get("generatedAt")
         run_seed = json.dumps(
             {"gw": target_gw, "sources": source_times, "version": VIEW_MODEL_VERSION},
             sort_keys=True,
@@ -484,7 +559,7 @@ def build_analysis(root: Path = ROOT) -> dict:
                 "teamName": entry.get("name"),
                 "projectionModel": projection_payload.get("meta", {}).get("model_version"),
                 "minutesModel": minutes.get("meta", {}).get("model_version"),
-                "comparisonPolicy": "Same six-week candidate set rescored over two and six weeks",
+                "comparisonPolicy": comparison_policy,
             },
             "readiness": {
                 "state": "partial" if settled < len(previous_fixtures) or not previous_event.get("data_checked") else "valid",
