@@ -57,6 +57,25 @@ class FreezeStateTests(unittest.TestCase):
         }) + "\n")
         self.assertFalse(freeze.minutes_unresolved(4))
 
+    def test_logging_never_writes_to_the_real_repository_log(self):
+        """A test run must not be able to forge entries in the real freeze log.
+
+        data/freeze.log is how a human answers "did the archive actually happen?" for an
+        operation that can never be redone. Fixture state written there is indistinguishable
+        from a production run, so this guards the redirect rather than the formatting.
+        """
+        real_log = self.original_data / "freeze.log"
+        before = real_log.read_bytes() if real_log.exists() else None
+
+        freeze.log("fixture line that must never reach the real log")
+
+        redirected = freeze.DATA_DIR / "freeze.log"
+        self.assertTrue(redirected.exists(), "log did not follow the redirected DATA_DIR")
+        self.assertIn("must never reach the real log", redirected.read_text())
+
+        after = real_log.read_bytes() if real_log.exists() else None
+        self.assertEqual(before, after, "test logging leaked into the real freeze log")
+
     def test_status_with_no_cache_never_fetches(self):
         with mock.patch.object(sys, "argv", ["freeze.py", "--status"]), \
                 mock.patch.object(freeze, "run_script") as run:
