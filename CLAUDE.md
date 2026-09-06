@@ -123,6 +123,8 @@ scripts/
   train_defcon.py     — walk-forward fit and ablations for DefCon threshold probability
   defcon.py           — runtime role-state/action-count DefCon model used by projections
   train_saves.py      — walk-forward fit and ablations for goalkeeper save-point expectation
+  train_priors.py     — walk-forward calibration of how much the prior season's attacking
+                        rate is worth against current-season evidence
   saves.py            — runtime save-count distribution used by projections
   counts.py           — shared Poisson/negative-binomial threshold helpers
   ratings.py          — team attack/defence ratings: weighted-Poisson fit with time decay,

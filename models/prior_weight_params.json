@@ -1,0 +1,219 @@
+{
+  "generated_at": "2026-09-06T03:09:44+00:00",
+  "question": "how many minutes should the prior season's rate be worth",
+  "incumbent": "flat 900 minutes for every player",
+  "horizon_gameweeks": 6,
+  "primary_metric": "minutes-weighted squared error against future xG/xA per 90",
+  "results": {
+    "expected_goals": {
+      "metric": "expected_goals",
+      "samples": 7441,
+      "schemes": {
+        "flat_900_incumbent": {
+          "weighted_mse": 0.013611,
+          "mse_se": 0.001457,
+          "poisson_nll_on_realized": 0.588512,
+          "n": 7441,
+          "clusters": 314
+        },
+        "flat_450": {
+          "weighted_mse": 0.014091,
+          "mse_se": 0.001526,
+          "poisson_nll_on_realized": 0.594157,
+          "n": 7441,
+          "clusters": 314
+        },
+        "flat_1350": {
+          "weighted_mse": 0.013511,
+          "mse_se": 0.001434,
+          "poisson_nll_on_realized": 0.586834,
+          "n": 7441,
+          "clusters": 314
+        },
+        "flat_1800": {
+          "weighted_mse": 0.013507,
+          "mse_se": 0.001427,
+          "poisson_nll_on_realized": 0.58626,
+          "n": 7441,
+          "clusters": 314
+        },
+        "flat_2700": {
+          "weighted_mse": 0.013573,
+          "mse_se": 0.001427,
+          "poisson_nll_on_realized": 0.58613,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_uncapped": {
+          "weighted_mse": 0.013331,
+          "mse_se": 0.001374,
+          "poisson_nll_on_realized": 0.584962,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_capped_900": {
+          "weighted_mse": 0.013555,
+          "mse_se": 0.001449,
+          "poisson_nll_on_realized": 0.588114,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_capped_1350": {
+          "weighted_mse": 0.013394,
+          "mse_se": 0.001414,
+          "poisson_nll_on_realized": 0.586283,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_capped_1800": {
+          "weighted_mse": 0.013336,
+          "mse_se": 0.001396,
+          "poisson_nll_on_realized": 0.585452,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_capped_2700": {
+          "weighted_mse": 0.013318,
+          "mse_se": 0.001378,
+          "poisson_nll_on_realized": 0.584879,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_scaled_0.25": {
+          "weighted_mse": 0.013812,
+          "mse_se": 0.001467,
+          "poisson_nll_on_realized": 0.59177,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_scaled_0.5": {
+          "weighted_mse": 0.013387,
+          "mse_se": 0.001401,
+          "poisson_nll_on_realized": 0.586645,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_scaled_0.75": {
+          "weighted_mse": 0.013318,
+          "mse_se": 0.00138,
+          "poisson_nll_on_realized": 0.585308,
+          "n": 7441,
+          "clusters": 314
+        }
+      },
+      "paired_vs_incumbent": {
+        "n": 7441,
+        "clusters": 314,
+        "value": -0.000292,
+        "se": 0.000174,
+        "challenger": "evidence_capped_2700",
+        "t": -1.68
+      }
+    },
+    "expected_assists": {
+      "metric": "expected_assists",
+      "samples": 7441,
+      "schemes": {
+        "flat_900_incumbent": {
+          "weighted_mse": 0.004325,
+          "mse_se": 0.00036,
+          "poisson_nll_on_realized": 0.742322,
+          "n": 7441,
+          "clusters": 314
+        },
+        "flat_450": {
+          "weighted_mse": 0.00441,
+          "mse_se": 0.000365,
+          "poisson_nll_on_realized": 0.750171,
+          "n": 7441,
+          "clusters": 314
+        },
+        "flat_1350": {
+          "weighted_mse": 0.004334,
+          "mse_se": 0.000362,
+          "poisson_nll_on_realized": 0.739341,
+          "n": 7441,
+          "clusters": 314
+        },
+        "flat_1800": {
+          "weighted_mse": 0.004362,
+          "mse_se": 0.000366,
+          "poisson_nll_on_realized": 0.737893,
+          "n": 7441,
+          "clusters": 314
+        },
+        "flat_2700": {
+          "weighted_mse": 0.004422,
+          "mse_se": 0.000374,
+          "poisson_nll_on_realized": 0.736653,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_uncapped": {
+          "weighted_mse": 0.004394,
+          "mse_se": 0.000374,
+          "poisson_nll_on_realized": 0.736978,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_capped_900": {
+          "weighted_mse": 0.00432,
+          "mse_se": 0.00036,
+          "poisson_nll_on_realized": 0.742478,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_capped_1350": {
+          "weighted_mse": 0.004326,
+          "mse_se": 0.000362,
+          "poisson_nll_on_realized": 0.739678,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_capped_1800": {
+          "weighted_mse": 0.004346,
+          "mse_se": 0.000365,
+          "poisson_nll_on_realized": 0.738237,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_capped_2700": {
+          "weighted_mse": 0.004379,
+          "mse_se": 0.000371,
+          "poisson_nll_on_realized": 0.737119,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_scaled_0.25": {
+          "weighted_mse": 0.004397,
+          "mse_se": 0.000366,
+          "poisson_nll_on_realized": 0.748521,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_scaled_0.5": {
+          "weighted_mse": 0.004342,
+          "mse_se": 0.000365,
+          "poisson_nll_on_realized": 0.741071,
+          "n": 7441,
+          "clusters": 314
+        },
+        "evidence_scaled_0.75": {
+          "weighted_mse": 0.004362,
+          "mse_se": 0.00037,
+          "poisson_nll_on_realized": 0.738292,
+          "n": 7441,
+          "clusters": 314
+        }
+      },
+      "paired_vs_incumbent": {
+        "n": 7441,
+        "clusters": 314,
+        "value": -4e-06,
+        "se": 6e-06,
+        "challenger": "evidence_capped_900",
+        "t": -0.67
+      }
+    }
+  }
+}

@@ -406,6 +406,53 @@ without returning to the earlier multi-megabyte format. The current 1,236 finali
 observation rows reconstruct official total points exactly. There are no frozen projection
 archives yet, so real forecast-error tables begin with the next pre-deadline archive.
 
+### Prior-season weight — calibrated 2026-09-05, replacing a flat constant
+
+The GW4 input audit found `effective_prior_minutes` was a flat 900 for every player,
+regardless of how much prior evidence existed. 140 players carried under 900 prior minutes
+and were credited with 900; 123 carried over 2,000 and were also credited with only 900.
+The consequence lands where it matters most: Bruno Fernandes had 3,065 prior minutes at
+0.298 xG/90, and 180 current minutes at 1.05 dragged his blend to 0.424 — a 42% swing off
+two matches, on the most captained player in the game.
+
+**This question did not need frozen archives**, which is why it was worth doing now. It
+involves only player xG rates and two complete cached seasons, so `scripts/train_priors.py`
+answers it walk-forward: at each 2025/26 cutoff, blend the 2024/25 prior with
+current-season-to-date evidence and score against what actually happened over the next six
+gameweeks. 7,441 player-cutoff samples across 314 players.
+
+The ordering is the finding. Every evidence-scaled scheme with a generous cap beat every
+flat scheme on future xG:
+
+| scheme | weighted MSE |
+|---|---|
+| evidence_capped_2700 | 0.01332 |
+| evidence_uncapped | 0.01333 |
+| evidence_capped_1800 | 0.01334 |
+| flat_1800 | 0.01351 |
+| flat_2700 | 0.01357 |
+| **flat_900 (incumbent)** | **0.01361** |
+| flat_450 | 0.01409 |
+
+Compare `flat_1800` (0.01351) with `evidence_capped_1800` (0.01334): the same ceiling, so
+the gain comes from *scaling with evidence*, not from trusting the prior more in general.
+
+**Honest about strength.** Paired and player-clustered, `evidence_capped_2700` beats flat
+900 by -0.000292 at **t = -1.68** — directional, not significant. It is adopted because it
+is principled and the incumbent constant had no evidence behind it whatsoever, not because
+the margin is established. For assists no scheme mattered (best is t = -0.67), and applying
+this one uniformly costs a non-significant t = +1.08 there; metric-specific rules were
+rejected as an invitation to overfit a single comparison.
+
+Effect on the live GW4 build: Fernandes' xG blend falls 0.424 -> 0.345 and his horizon xP
+24.50 from 25.36. The top two are unchanged, but the middle reorders — Szoboszlai 8th to
+11th, Dewsbury-Hall and João Pedro into the top twelve — which is exactly the band where
+transfers are decided.
+
+Timing was deliberate: model changes are cheapest before any archive exists, because after
+the first freeze every change fragments `evaluate.py`'s version split and resets the count
+toward six comparable archives. `MODEL_VERSION` is now `baseline-v8-priorweight`.
+
 ### Penalty duty — built and wired in 2026-09-05
 
 `penalties_order` had been snapshotted daily since 2026-09-03 specifically because the API

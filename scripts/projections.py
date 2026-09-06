@@ -28,12 +28,38 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 OUT = DATA_DIR / "projections.json"
 ARCHIVE_DIR = ROOT / "projections"
-MODEL_VERSION = "baseline-v7-setpieces"
+MODEL_VERSION = "baseline-v8-priorweight"
 PRIOR_STRENGTH = 5.0
 # Last season is useful early evidence, but not a permanent claim about the player's
 # current role. Ten matches is an explicit starting assumption to recalibrate from the
 # frozen archives; current-season minutes dilute it one-for-one.
+# How many minutes of evidence the prior season's rate is worth. Previously a flat 900
+# for everyone, which treated 480 and 3,065 prior minutes as equally informative: 140
+# players carried under 900 and were credited with 900, while 123 carried over 2,000 and
+# were also credited with only 900, letting two or three current matches swing a
+# well-established rate by 40%.
+#
+# train_priors.py calibrates this walk-forward on 2025/26 with 2024/25 as the prior, and
+# the whole ordering favours scaling by evidence: every evidence-scaled scheme with a
+# generous cap beat every flat scheme on future xG. Note flat_1800 (0.01351) against
+# evidence_capped_1800 (0.01334) — the same ceiling, so the gain comes from scaling with
+# evidence rather than merely trusting the prior more.
+#
+# Honest about strength: paired and player-clustered, the chosen scheme beats flat 900 by
+# -0.000292 at t = -1.68, which is directional rather than significant. It is adopted
+# because it is principled and the incumbent constant had no evidence behind it at all,
+# not because the margin is established. For assists no scheme mattered (t = -0.67 for
+# the best), and applying this one uniformly costs a non-significant t = +1.08 there;
+# metric-specific rules were rejected as an invitation to overfit one comparison.
 PLAYER_PRIOR_MINUTES = 900.0
+PLAYER_PRIOR_MINUTES_CAP = 2700.0
+
+
+def prior_weight(prior_minutes: float | None) -> float:
+    """Minutes of weight the prior-season anchor earns, from its own sample size."""
+    if not prior_minutes or prior_minutes <= 0:
+        return PLAYER_PRIOR_MINUTES
+    return min(prior_minutes + POSITION_PRIOR_MINUTES, PLAYER_PRIOR_MINUTES_CAP)
 # Before becoming the player's prior, a prior-season rate is itself pulled toward the
 # positional population by five matches. This limits one small prior-season sample.
 POSITION_PRIOR_MINUTES = 450.0
@@ -208,7 +234,7 @@ def prior_season_rate(previous: dict | None, field: str, position_rate: float) -
         "position_per_90": round(position_rate, 5),
         "position_prior_minutes": POSITION_PRIOR_MINUTES,
         "player_prior_per_90": round(rate, 5),
-        "effective_prior_minutes": PLAYER_PRIOR_MINUTES,
+        "effective_prior_minutes": PLAYER_PRIOR_MINUTES,  # overwritten by blended_per_90
     }
 
 
@@ -220,10 +246,12 @@ def blended_per_90(player: dict, target_gw: int, prior: dict, field: str) -> tup
     position_rate = prior[f"{field}_per_90"]
     previous = previous_season_for(player["id"])
     player_prior, audit = prior_season_rate(previous, field, position_rate)
-    rate = (observed * 90 + player_prior * PLAYER_PRIOR_MINUTES) / (
-        played_minutes + PLAYER_PRIOR_MINUTES
-    )
+    weight = prior_weight(audit.get("raw_minutes"))
+    rate = (observed * 90 + player_prior * weight) / (played_minutes + weight)
     audit.update({
+        "effective_prior_minutes": weight,
+        "prior_weight_policy": "min(prior minutes + position prior, cap); "
+                               "calibrated in train_priors.py",
         "current_total": round(observed, 5),
         "current_minutes": played_minutes,
         "current_per_90": round(observed * 90 / played_minutes, 5) if played_minutes else None,
@@ -872,6 +900,7 @@ def build(show: int = 0, horizon: int = DEFAULT_HORIZON) -> dict:
             "minutes_trained_model_sha256": minute_payload["meta"]["trained_model_sha256"],
             "assisted_goal_rate": round(assisted_goal_rate, 4),
             "player_prior_minutes": PLAYER_PRIOR_MINUTES,
+            "player_prior_minutes_cap": PLAYER_PRIOR_MINUTES_CAP,
             "position_prior_minutes": POSITION_PRIOR_MINUTES,
             "prior_policy": (
                 "latest official history_past rate shrunk 450 minutes toward position; "
