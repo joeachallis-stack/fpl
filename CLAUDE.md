@@ -200,6 +200,9 @@ news/
                         once they scroll off the source, same reasoning as snapshots/.
 docs/
   IDEAS.md            — objective, backlog, open questions, build order
+  HANDOFF_*.md        — session handoffs for cross-agent review; each states what was
+                        built, what was measured, what was deliberately NOT adopted, and
+                        what the author most wants challenged
   PRIOR_ART.md        — literature/solver review + cross-check against verified data
   RULES_2026_27.md    — season rules (chips, transfers, scoring, deadlines)
   DATA_SOURCES.md      — API endpoint reference + third-party sources
