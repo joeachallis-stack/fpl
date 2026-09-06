@@ -1,6 +1,6 @@
 # FPL decision room — frontend specification
 
-Status: approved build contract, 2026-09-06. Joe's direction is fixed as desktop-only,
+Status: approved build contract and active implementation, 2026-09-06. Joe's direction is fixed as desktop-only,
 squad plus options on the opening screen, and playful/recognizably fantasy-football rather
 than restrained analyst software. Implementation is isolated on `codex/frontend-v1` so
 the repaired GW4 model and scheduler path on `main` remain unchanged.
@@ -607,10 +607,9 @@ counts and model-version boundaries.
 
 ## Remaining implementation decisions
 
-1. Validate the chosen local React/TypeScript frontend and Python view-model adapter during
-   implementation; do not move model calculations into the browser.
-2. Specify the stable numeric domains and accessible palette for Attack and Defence fixture
-   heat views from the observed season distribution.
-3. Design the journal review form around the existing JSONL schema.
-4. Decide whether a confirmed “Submitted team” is entered manually or deferred until the
+1. Decide whether to generate a separately optimized two-week artifact. V1 currently
+   re-scores the coherent six-week candidate set and labels that limitation.
+2. Decide whether a confirmed “Submitted team” is entered manually or deferred until the
    following deadline proves it through public picks.
+3. Decide whether the one-click macOS `.command` launcher is sufficient or worth packaging
+   as a native `.app` after the weekly flow has been used in practice.
