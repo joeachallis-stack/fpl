@@ -104,6 +104,13 @@ NEGATIONS = re.compile(
     re.I,
 )
 
+# "Scored six points" describes an FPL total, not a football goal. Treating any past-
+# tense use of "scored" as a goal assertion produced a false contradiction for Kinsky.
+FPL_POINTS = re.compile(
+    r"\bscored\s+(?:\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten)\s+points?\b",
+    re.I,
+)
+
 
 def check(text: str, element: int, gw: int) -> list[dict]:
     """Check one claim about one player in one gameweek. Empty list means nothing to say."""
@@ -115,6 +122,8 @@ def check(text: str, element: int, gw: int) -> list[dict]:
     results = []
     for pattern, label, test in CLAIM_RULES:
         if not re.search(pattern, text, re.I):
+            continue
+        if test == "has_goal" and FPL_POINTS.search(text):
             continue
         holds = test_claim(test, record)
         results.append({

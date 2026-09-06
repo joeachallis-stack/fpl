@@ -115,3 +115,35 @@ launcher. Closing that Terminal window stops the server.
 
 Do not let frontend completion delay or mutate the GW4 first-success archive. The archive
 remains more important than this branch.
+
+## Later on 2026-09-06: GW3 wait and early GW4 evidence
+
+Two fresh official-data checks after the final fixture still returned all 10 fixtures as
+provisionally settled, while GW3 remained `finished: false`, `data_checked: false` and
+`bonus_added: false`. Do not resolve `minutes/gw03.jsonl` or rebuild the GW4 model from
+the supposedly complete round until those official flags change. `check_team.py` is clean
+for the last saved squad: legal XI, all starters available, valid captain/vice and a fit
+first substitute.
+
+The refresh found two genuine GW4 creator videos. Both were extracted under the
+`gameweek-brief` contract and recorded in the ledger:
+
+- FPL Raptor: 57 findings from an early Sunday Wildcard draft.
+- FPL Harry: 40 findings from an early Sunday transfer/chip draft.
+
+The current owned-player read is strongly positive on Rogers and João Pedro; mixed on
+Tzolis and Bruno Fernandes; positive on Calafiori and Gibbs-White; negative on Shaw; and
+concerned about Szoboszlai's open-play threat despite agreement that his minutes are secure.
+Both creators treat João Pedro as a leading GW4 captain, generally beside Palmer.
+
+This run exposed two validation traps and fixed them. Claim checks are now deferred until
+the referenced gameweek is officially `finished` and `data_checked`; a sentence naming
+several players is not applied indiscriminately to every player; and “scored six points”
+is no longer read as “scored a goal.” The roster trim now retains flagged zero-minute
+players after Saliba was omitted from the vocabulary, and the observed “Celiba” alias was
+recorded. “Bayas” remains unresolved because its identity is not proven.
+
+Once GW3 finalizes: resolve the minutes archive first, refresh the element histories, rerun
+the GW4 consolidation with official claim checks, and inspect the Tzolis disagreement. The
+pre-finalization minutes file had Tzolis at 52.3 expected minutes / 42.1% for 60+, while
+Raptor points to his GW3 90 minutes as evidence the earlier role doubt may have eased.
