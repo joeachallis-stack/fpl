@@ -143,7 +143,10 @@ is no longer read as “scored a goal.” The roster trim now retains flagged ze
 players after Saliba was omitted from the vocabulary, and the observed “Celiba” alias was
 recorded. “Bayas” remains unresolved because its identity is not proven.
 
-Once GW3 finalizes: resolve the minutes archive first, refresh the element histories, rerun
-the GW4 consolidation with official claim checks, and inspect the Tzolis disagreement. The
-pre-finalization minutes file had Tzolis at 52.3 expected minutes / 42.1% for 60+, while
-Raptor points to his GW3 90 minutes as evidence the earlier role doubt may have eased.
+Once GW3 finalizes: resolve the GW3 minutes archive first, refresh the element histories,
+rerun the GW4 consolidation with official claim checks, and inspect the Tzolis evidence.
+The immutable GW3 archive predicted Tzolis at 59.0 expected minutes / 44.3% for 60+; his
+eventual 90 minutes will become its actual only after official finalization. Separately,
+the rebuildable `data/minutes.json` targets GW4 and currently says 52.3 expected minutes /
+42.1% for 60+, but it was generated before GW3's last two fixtures and should not be read
+as the frozen forecast or as the post-GW3 update.
