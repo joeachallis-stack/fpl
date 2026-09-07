@@ -1,5 +1,5 @@
 import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { deadlineLabel, fixtureLabel, money, signed, sourceLabel } from './format'
+import { deadlineLabel, expectedPoints, fixtureLabel, money, signed, sourceLabel } from './format'
 import type { Analysis, Fixture, Plan, Player, PlayerPoolEntry, Room } from './types'
 
 const rooms: Array<{ id: Room; label: string; number: string }> = [
@@ -273,7 +273,7 @@ function SquadPitch({ analysis, plan, onSelectPlayer }: { analysis: Analysis; pl
           const player = findPlayer(analysis, id)
           return player ? (
             <button key={id} className="bench-player" onClick={() => onSelectPlayer(id)}>
-              <small>{index === 0 ? 'GK' : index}</small><strong>{player.name}</strong><span>{fixtureLabel(player.opponent, player.home)}</span>
+              <small>{index === 0 ? 'GK' : index}</small><strong>{player.name}</strong><span>{fixtureLabel(player.opponent, player.home)} <b>{expectedPoints(player.gameweekXP)}</b></span>
             </button>
           ) : null
         })}
@@ -290,7 +290,7 @@ function PlayerSticker({ player, captain, vice, onClick }: { player: Player; cap
       <span className="shirt" aria-hidden="true"><i>{captain ? 'C' : vice ? 'V' : player.teamShort.slice(0, 1)}</i></span>
       <span className="player-name">{player.name}</span>
       <span className="player-fixture">{fixtureLabel(player.opponent, player.home)}</span>
-      <span className="player-xp">{player.gameweekXP == null ? '—' : `${player.gameweekXP.toFixed(1)} xP`}</span>
+      <span className="player-xp">{expectedPoints(player.gameweekXP)}</span>
       {player.warnings.length > 0 && <span className="warning-pin" title={player.warnings.join(' · ')}>!</span>}
     </button>
   )

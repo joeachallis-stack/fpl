@@ -89,6 +89,7 @@ code { font-family: "SFMono-Regular", Consolas, monospace; }
 .bench-player small { grid-row: 1 / 3; display: grid; place-items: center; width: 20px; height: 28px; color: white; background: var(--night); }
 .bench-player strong { font-size: 13px; }
 .bench-player span { color: #746e7d; font-size: 11px; }
+.bench-player span b { margin-left: 5px; color: var(--purple); font: 700 11px "Barlow Condensed", sans-serif; white-space: nowrap; }
 
 .options-board { min-height: 650px; border: 1px solid var(--night); background: #fff; }
 .options-board > header { height: 84px; display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; color: white; background: var(--night); }

@@ -11,6 +11,10 @@ export function fixtureLabel(opponent: string, home: boolean | null | undefined)
   return `${opponent} ${home ? '(H)' : '(A)'}`
 }
 
+export function expectedPoints(value: number | null | undefined): string {
+  return value == null ? '—' : `${value.toFixed(1)} xP`
+}
+
 export function deadlineLabel(value: string): string {
   const date = new Date(value)
   return new Intl.DateTimeFormat('en-GB', {
