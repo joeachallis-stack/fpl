@@ -52,10 +52,19 @@ def owned_elements() -> set[int]:
         return {p["element"] for p in json.load(f)["picks"]}
 
 
+def gameweek_finalized(gw: int) -> bool:
+    """Only let the official record adjudicate a claim once FPL has checked the round."""
+    with open(DATA_DIR / "bootstrap.json") as f:
+        events = json.load(f)["events"]
+    event = next((row for row in events if row["id"] == gw), None)
+    return bool(event and event.get("finished") and event.get("data_checked"))
+
+
 def annotate(rows: list[dict], gw: int) -> tuple[list[dict], list[str]]:
     """Resolve names and check claims. Returns annotated findings and unresolved names."""
     players = roster.load_players()
     unresolved: list[str] = []
+    checks_enabled = gameweek_finalized(gw - 1)
 
     for row in rows:
         resolved = []
@@ -71,7 +80,10 @@ def annotate(rows: list[dict], gw: int) -> tuple[list[dict], list[str]]:
         # The claim check runs against the PREVIOUS gameweek, because a factual claim in
         # pre-deadline advice is describing what already happened, not what is to come.
         row["checks"] = []
-        for player in resolved:
+        # With several named players, a sentence-level pattern cannot know which player
+        # owns the assertion. Staying quiet is safer than applying "who scored" to all.
+        if checks_enabled and len(resolved) == 1:
+            player = resolved[0]
             for result in claims.check(row.get("claim", ""), player["element"], gw - 1):
                 row["checks"].append({"player": player["web_name"], **result})
 
@@ -94,6 +106,12 @@ def main() -> None:
     sources = {r["source"] for r in rows}
     print(f"GW{args.gw}: {len(rows)} findings from {len(sources)} creators "
           f"across {len({r['video_id'] for r in rows})} videos\n")
+
+    if not gameweek_finalized(args.gw - 1):
+        print(
+            f"Claim verification deferred: GW{args.gw - 1} is not yet officially "
+            "finished and data_checked.\n"
+        )
 
     contradictions = [c for r in rows for c in r["checks"] if c["verdict"] == "CONTRADICTED"]
     if contradictions:

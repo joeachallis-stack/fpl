@@ -5,3 +5,8 @@ __pycache__/
 .DS_Store
 .env
 data/minutes.json
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts

@@ -14,6 +14,12 @@
   Install:   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.joechallis.fpl-freeze.plist
   Remove:    launchctl bootout gui/$(id -u)/com.joechallis.fpl-freeze
   Run now:   launchctl kickstart -k gui/$(id -u)/com.joechallis.fpl-freeze
+  Alive?:    launchctl print gui/$(id -u)/com.joechallis.fpl-freeze | grep -E 'runs|last exit'
+
+  Check liveness with that `runs` counter, not with data/freeze.log. freeze.py logs only
+  when it acts, so a healthy idle job and a job that never ran look identical in the log.
+  StandardOutPath below is the honest record of scheduled runs specifically: only launchd
+  writes it, so a line there came from the timer and not from a manual or test invocation.
 -->
 <plist version="1.0">
 <dict>

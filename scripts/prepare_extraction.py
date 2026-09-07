@@ -99,7 +99,13 @@ def main() -> None:
         return
 
     players = roster.load_players()
-    kept = [p for p in players if p["minutes"] > 0 or p["owned"] >= ROSTER_MIN_OWNED]
+    # Flagged zero-minute players still matter in return-timeline discussions. Saliba
+    # was omitted from the GW4 vocabulary because he had no minutes or ownership, then
+    # appeared in a creator's analysis of Konsa's future minutes risk as "Celiba".
+    kept = [
+        p for p in players
+        if p["minutes"] > 0 or p["owned"] >= ROSTER_MIN_OWNED or p["status"] != "a"
+    ]
     roster_path = out_dir / "roster.txt"
     roster_path.write_text("\n".join(roster.roster_names(kept)) + "\n")
     print(f"\nwrote {roster_path} — {len(kept)} of {len(players)} players "

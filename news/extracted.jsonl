@@ -17,3 +17,5 @@
 {"video_id": "maOWMiAWEDk", "gw": 3, "findings": 8, "model": "sonnet", "status": "complete", "spec_version": "82182eebad29", "extracted_at": "2026-09-04T14:47:24.023244+00:00"}
 {"video_id": "LhbwPzMrpAM", "gw": 3, "findings": 13, "model": "sonnet", "status": "complete", "spec_version": "82182eebad29", "extracted_at": "2026-09-04T14:47:24.046372+00:00"}
 {"video_id": "55xd_R0VXVM", "gw": 3, "findings": 10, "model": "sonnet", "status": "complete", "spec_version": "82182eebad29", "extracted_at": "2026-09-04T14:47:24.069276+00:00"}
+{"video_id": "7KsmwJB-Gu4", "gw": 4, "findings": 40, "model": "codex", "status": "complete", "spec_version": "82182eebad29", "extracted_at": "2026-09-06T20:22:26.111625+00:00"}
+{"video_id": "iLRxqOSfh7o", "gw": 4, "findings": 57, "model": "codex", "status": "complete", "spec_version": "82182eebad29", "extracted_at": "2026-09-06T20:33:12.495813+00:00"}

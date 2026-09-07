@@ -43,7 +43,6 @@ import state
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
-LOG_PATH = DATA_DIR / "freeze.log"
 
 # Start trying half a day out. Long enough to survive a closed laptop, late enough that
 # most team news has landed.
@@ -61,11 +60,20 @@ STEPS = (
 
 
 def log(message: str) -> None:
+    """Record a run that did something, to the log belonging to the current DATA_DIR.
+
+    The path is resolved on every call rather than bound at import. Tests redirect this
+    module at a temporary root by reassigning DATA_DIR, which cannot reach a constant
+    already computed from the real one — so a module-level LOG_PATH quietly wrote every
+    test's fixture state into the real log. That log is the human-readable record of
+    whether a never-redoable archive happened, so fiction in it is worse than no log.
+    """
     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     line = f"{stamp}  {message}"
     print(line)
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_PATH.open("a") as handle:
+    path = DATA_DIR / "freeze.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as handle:
         handle.write(line + "\n")
 
 

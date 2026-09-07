@@ -205,3 +205,22 @@ until November. Its first version should expose freshness, warnings, component b
 the top few plan comparisons, creator/model disagreements and archive status. It should
 not label a plan optimal, hide uncertainty, expose shadow forecasts to decisions or write
 team changes.
+
+The design-only follow-up created `docs/FRONTEND_SPEC.md`. After Joe's preferences, the
+direction became a desktop-only, playful “fantasy sticker-board” with four rooms: My
+gameweek, Expert room, Fixture wall and Model form. The opening view pairs the squad pitch
+with two-versus-six-GW options; experts are organized as consensus/dissent by player; the
+fixture wall is an Excel-like team-by-gameweek grid; calibration remains separate from
+live decisions. No repository frontend code or dependencies were added.
+
+The next review converted the visual proposal into a build contract. The spec now defines
+five distinct squad states, safe local actions versus forbidden FPL/archive writes, shared
+scenario context across rooms, probabilistic minutes-calibration metrics, fixture-grid
+past/future semantics, creator coverage/provenance, chip and selling-price constraints,
+coherent `analysis_run_id` snapshots, failure recovery, local-only delivery and five
+acceptance-tested build slices. The agreed defaults are shirt-shaped player pieces,
+consensus-first experts, neutral fixtures and a quieter Model form room.
+
+Joe subsequently authorized implementation. The safe boundary is to commit this design
+record on `main`, then build on `codex/frontend-v1`; no frontend work should modify the
+repaired GW4 model or scheduler path before its first archive.
