@@ -79,9 +79,9 @@ code { font-family: "SFMono-Regular", Consolas, monospace; }
 .shirt { position: absolute; top: 0; left: 26px; display: grid; place-items: center; width: 48px; height: 42px; color: var(--trim); background: linear-gradient(90deg, var(--shirt) 0 38%, var(--trim) 38% 44%, var(--shirt) 44% 56%, var(--trim) 56% 62%, var(--shirt) 62%); clip-path: polygon(22% 0, 38% 8%, 62% 8%, 78% 0, 100% 20%, 86% 40%, 76% 31%, 76% 100%, 24% 100%, 24% 31%, 14% 40%, 0 20%); }
 .shirt i { font-style: normal; font-weight: 800; font-size: 12px; text-shadow: 0 1px 1px rgba(0,0,0,.45); }
 .player-name { position: absolute; top: 43px; left: 0; right: 0; padding: 3px 4px; background: var(--night); font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.player-fixture, .player-minutes { position: absolute; top: 65px; font: 600 10px "Barlow Condensed", sans-serif; }
+.player-fixture, .player-xp { position: absolute; top: 65px; font: 600 10px "Barlow Condensed", sans-serif; }
 .player-fixture { left: 5px; }
-.player-minutes { right: 5px; }
+.player-xp { right: 5px; color: var(--yellow); font-weight: 700; }
 .warning-pin { position: absolute; top: -3px; right: 17px; display: grid; place-items: center; width: 20px; height: 20px; color: var(--night); background: var(--yellow); border: 2px solid var(--night); border-radius: 50%; font-size: 11px; font-weight: 800; }
 .bench-row { position: relative; z-index: 3; height: 112px; display: grid; grid-template-columns: 66px repeat(4, 1fr); background: #fff; border-top: 1px solid #25814f; }
 .bench-label { display: grid; place-items: center; color: white; background: var(--night); font-family: "Arial Black", sans-serif; writing-mode: vertical-rl; transform: rotate(180deg); }

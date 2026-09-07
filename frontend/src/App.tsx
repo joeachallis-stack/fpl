@@ -290,7 +290,7 @@ function PlayerSticker({ player, captain, vice, onClick }: { player: Player; cap
       <span className="shirt" aria-hidden="true"><i>{captain ? 'C' : vice ? 'V' : player.teamShort.slice(0, 1)}</i></span>
       <span className="player-name">{player.name}</span>
       <span className="player-fixture">{fixtureLabel(player.opponent, player.home)}</span>
-      <span className="player-minutes">{player.expectedMinutes?.toFixed(0) ?? '—'} min</span>
+      <span className="player-xp">{player.gameweekXP == null ? '—' : `${player.gameweekXP.toFixed(1)} xP`}</span>
       {player.warnings.length > 0 && <span className="warning-pin" title={player.warnings.join(' · ')}>!</span>}
     </button>
   )

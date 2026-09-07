@@ -39,6 +39,10 @@ The product has four rooms, reached from persistent desktop navigation:
 “My gameweek” is always the default. The other rooms support the decision; they do not
 compete with it for attention on one endlessly scrolling dashboard.
 
+On the pitch, each player sticker shows the target-gameweek xP beside the fixture. Expected
+minutes remains available in the player drawer with its probability bands: xP is the
+decision-facing summary, while xM is a diagnostic input.
+
 ## Product principles
 
 - **Readiness before ranking.** Freshness, missing fixtures, unresolved forecasts and
