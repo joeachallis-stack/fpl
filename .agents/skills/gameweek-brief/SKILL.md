@@ -26,6 +26,17 @@ python scripts/prepare_extraction.py --gw N
 already discarded everything not worth reading — see *Why the filtering matters* below.
 If it says nothing to do, every current video is already extracted; go straight to step 3.
 
+**Close Chrome before fetching.** Captions are pulled with the browser's YouTube session,
+because unauthenticated pulls started returning HTTP 429 for days at a time on
+2026-09-08. A *running* Chrome rotates those cookies while yt-dlp reads them and every
+caption fails with "The page needs to be reloaded" — which looks like a broken tool and
+is not one. With Chrome closed it works first time. If a run reports videos pending and
+no transcripts fetched, check this before anything else.
+
+`fetch_news.py --skip-transcripts` indexes new uploads without touching captions, which
+is what you want if the browser is in use — the work list stays honest and the transcript
+pass picks them up on the next run.
+
 After each batch finishes, record it:
 
 ```bash

@@ -47,6 +47,23 @@ TRANSCRIPT_DIR = ROOT / "news" / "transcripts"
 # How far back to retry a missing transcript. Older gaps belong to settled gameweeks.
 TRANSCRIPT_RETRY_DAYS = 10
 
+# Captions are fetched with the local browser's YouTube session. Unauthenticated pulls
+# worked until 2026-09-08 and then returned HTTP 429 for well over a day — long enough
+# that it reads as an IP-level block on the timedtext endpoint rather than a burst limit.
+# Cookies clear it completely.
+#
+# Two traps, both cost hours to find:
+#   * The browser must be CLOSED. A running Chrome rotates the cookies as yt-dlp reads
+#     them, and the request fails with "The page needs to be reloaded" — which looks like
+#     a yt-dlp bug and is not one.
+#   * Only the default `web` client exposes automatic captions. Every alternative client
+#     tried (android_vr, web_safari, mweb, tv, ios) reports zero caption languages, so
+#     switching client to dodge the rate limit trades the error for silence.
+#
+# Set to None to pull anonymously; the code falls back to that on its own if the browser
+# profile cannot be read, since an unauthenticated attempt is better than no attempt.
+COOKIES_FROM_BROWSER = "chrome"
+
 # Adaptive delay between caption downloads, in seconds. Shared across videos in a run:
 # a 429 is a statement about the client, not about the video that happened to trigger it.
 THROTTLE_MIN = 2.0
@@ -293,6 +310,11 @@ def pull_transcript(video_id: str) -> str | None:
         "quiet": True,
         "no_warnings": True,
     }
+    if COOKIES_FROM_BROWSER:
+        opts["cookiesfrombrowser"] = (COOKIES_FROM_BROWSER, None, None, None)
+    # Captions are the only thing wanted here, so a missing video format is not an error.
+    opts["ignore_no_formats_error"] = True
+
     for attempt in range(TRANSCRIPT_ATTEMPTS):
         time.sleep(_throttle)
         try:
@@ -303,6 +325,11 @@ def pull_transcript(video_id: str) -> str | None:
             _throttle = max(THROTTLE_MIN, _throttle * 0.7)
             break
         except Exception as exc:  # noqa: BLE001 - one video's captions shouldn't block the rest
+            # An unreadable browser profile shouldn't stop the run — drop the cookies and
+            # let the attempt proceed anonymously rather than failing outright.
+            if "cookies" in str(exc).lower() and opts.pop("cookiesfrombrowser", None):
+                print(f"    browser cookies unavailable ({exc}) — continuing without them")
+                continue
             if "429" not in str(exc) or attempt == TRANSCRIPT_ATTEMPTS - 1:
                 print(f"    transcript for {video_id} failed ({exc}) — skipping")
                 return None
