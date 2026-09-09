@@ -184,6 +184,14 @@ player you attribute it to is the one the surrounding context actually supports,
 the team of the other players named nearby. Eze and Konsa are Arsenal, so a player
 substituted for Eze is an Arsenal player.
 
+**The same trap, twice, on a player Joe owns.** Captions render **Thiaw** (Newcastle,
+DEF) as "Chow", "Chaw" and "Shaw" — and Shaw (Man Utd, DEF) is a real roster line in
+Joe's own squad. Two separate runs attributed a Newcastle defender's claim to Joe's Man
+Utd defender. This one cannot be fixed with an alias, because aliasing "shaw" would
+break every genuine mention of the player he owns. It has to be read from context: if
+the surrounding talk is Newcastle, cheap defenders around 5.0m, or Lewis Hall, it is
+Thiaw. Raptor's "it's Shaw and Hall from Newcastle" names the club outright.
+
 Known manglings seen in this corpus: Tzolis appears as "Solanke", "Solis" and "solace";
 Cherki as "Churkey", "Cherokee" and "Traore"; Calafiori as "Califury" and "Counter fury";
 Guéhi as "Gay"; Schade as "Kevin Sharda"; Gvardiol as "Vardyol".

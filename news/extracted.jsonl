@@ -27,3 +27,7 @@
 {"video_id": "KCQts3xK0ps", "gw": 4, "findings": 53, "model": "sonnet", "status": "complete", "spec_version": "995e0e77a2d4", "extracted_at": "2026-09-09T13:43:52.732913+00:00"}
 {"video_id": "AaRzXORGwN0", "gw": 4, "findings": 44, "model": "sonnet", "status": "complete", "spec_version": "995e0e77a2d4", "extracted_at": "2026-09-09T13:43:52.754722+00:00"}
 {"video_id": "ze0MrhImJB0", "gw": 4, "findings": 54, "model": "sonnet", "status": "complete", "spec_version": "995e0e77a2d4", "extracted_at": "2026-09-09T13:43:52.776332+00:00"}
+{"video_id": "6UmT1E0nIbQ", "gw": 4, "findings": 16, "model": "sonnet", "status": "complete", "spec_version": "995e0e77a2d4", "extracted_at": "2026-09-09T13:46:06.496362+00:00"}
+{"video_id": "VYL6_pcifGE", "gw": 4, "findings": 36, "model": "sonnet", "status": "complete", "spec_version": "d3ddca7d3698", "extracted_at": "2026-09-09T13:55:28.254479+00:00"}
+{"video_id": "I79r-zM_Zt0", "gw": 4, "findings": 31, "model": "sonnet", "status": "complete", "spec_version": "d3ddca7d3698", "extracted_at": "2026-09-09T13:55:28.279174+00:00"}
+{"video_id": "tH5-y2Cq3PQ", "gw": 4, "findings": 23, "model": "sonnet", "status": "complete", "spec_version": "d3ddca7d3698", "extracted_at": "2026-09-09T13:55:28.301645+00:00"}
