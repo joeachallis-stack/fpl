@@ -45,26 +45,87 @@ then find them in the roster.
 
 ## Step 2 — the user's squad
 
-For the `owned_player` category. All are on the roster:
+Context only, so you recognise who is being discussed. Do **not** label a finding by
+whether Joe owns the player — ownership is read from his actual squad downstream.
+All are on the roster:
 
 Kinsky, Dúbravka, Virgil, Calafiori, Shaw, Guéhi, Palestra, Szoboszlai, B.Fernandes,
 Rogers, Gibbs-White, Tzolis, João Pedro, Isak, Kusi-Asare
 
-## Step 3 — categories
+## Step 3 — classify each finding on three axes
 
-- `owned_player` — about a player in the squad above
-- `target` — a player suggested as a transfer target or flagged as good value
-- `chip` — Wildcard, Free Hit, Bench Boost, Triple Captain strategy and timing
-- `fixtures` — double/blank gameweeks, fixture swings, rescheduled matches
-- `captaincy` — captain or vice-captain recommendations
-- `minutes_risk` — rotation, benching, hooked early, squad competition, return from injury
-- `set_piece` — penalty, free-kick or corner duty, especially changing hands
-- `price` — a player about to rise or fall in price
-- `creator_action` — what the creator did with their OWN team, as distinct from what they
-  advise. "I've triple-captained Haaland" is an action; "you could captain Haaland" is not.
-- `misc` — injury news, press conference, kickoff timing, anything else decision-relevant
+Do not use one "category" field. A claim has a subject, an information type and a
+timeframe, and collapsing them loses the part that matters.
 
-## Step 4 — output
+### `topic` — what the claim is ABOUT (pick exactly one)
+
+| topic | covers |
+|---|---|
+| `minutes` | starting, benching, rotation, hooked early, squad competition, lineup choice |
+| `injury` | knock, fitness, return timeline, suspension |
+| `role` | where and how he plays — moved central, false 9, dropped deeper |
+| `set_piece` | penalty, free-kick or corner duty, especially changing hands |
+| `form` | judgment of how he is playing, by eye or by number |
+| `fixtures` | schedule — swings, doubles, blanks, European congestion |
+| `price` | an imminent rise or fall |
+| `captaincy` | captain or vice-captain picks |
+| `chip` | Wildcard, Free Hit, Bench Boost, Triple Captain strategy and timing |
+| `transfer` | buy, sell or hold advice on a player |
+
+Pick the topic the sentence is **primarily** about. "On a wildcard, lock in Calafiori and
+Konsa" is `transfer` — it mentions a chip, it is not about chip strategy.
+
+There is no `owned_player` or `target` topic. Whether Joe owns a player is read from his
+actual squad; it is not yours to label, and labelling it left half the corpus with no
+topic at all.
+
+### `kind` — what TYPE of information it is (pick exactly one)
+
+| kind | meaning |
+|---|---|
+| `news` | an external fact reported — injury, rumour, press conference, confirmed lineup, transfer |
+| `read` | the creator's own eye-test judgment: "he looked lost", "the team was better balanced without him" |
+| `stat` | a cited number — xG, shots, defensive contributions, ownership, points |
+| `recommendation` | what the viewer should do |
+| `action` | what the creator did or will do with **their own** team |
+
+This axis decides what gets read first. `news` and `read` describe things the model
+cannot see and are the most valuable findings in the corpus. `stat` is usually a number
+the model already computes, and is kept only as a cross-check. Do not label a claim
+`stat` because a number appears in it — label it `stat` when the number **is** the claim.
+
+`action` is strictly the creator's own team. "I've triple-captained Haaland" is `action`;
+"you could captain Haaland" is `recommendation`.
+
+### `horizon` — WHEN it bites (pick exactly one)
+
+| horizon | |
+|---|---|
+| `this_gw` | applies to the upcoming deadline |
+| `next_few` | the next two to six gameweeks |
+| `season` | long-range — a chip window in GW16, a season-long hold |
+
+You are told the current gameweek. Use it. A named future gameweek beats any phrasing:
+"Haaland vs Ipswich GW7" is `season` when the deadline is GW4.
+
+**"This gameweek" inside a claim is not necessarily the upcoming one.** A video recorded
+after a round settles says "this gameweek" about the round just played. Past tense gives
+it away: "in this Gameweek, Foden is benched and Cherki starts, and we saw Cherki subbed
+early" is a report on the gameweek that finished, not team news for the deadline ahead.
+Filed as `kind: news` with `horizon: this_gw`, a settled result is presented as current
+team news — the single most misleading thing this extraction can produce. Check the
+publish date against the deadline you were given, and read the tense.
+
+## Step 4 — teams
+
+Add a `teams` array for claims about a club rather than a player: "Hull have conceded
+3.12 xG in two games" is about Hull. Use the club name as the roster writes it. A finding
+may have players, teams, both, or neither.
+
+Team-level claims used to land in `misc` and were lost. With a `teams` array they attach
+to the fixture wall.
+
+## Step 5 — output
 
 **Write your findings to the file you are given, one JSON object per line (JSONL).**
 Do not return them in your reply — a batch produces 50-100 findings and returning them
@@ -77,13 +138,16 @@ One object per line, in this shape:
   "video_id": "...",
   "source": "...",
   "published": "...",
-  "category": "owned_player",
   "players": ["B.Fernandes (Man Utd, MID)"],
+  "teams": [],
   "unresolved": [],
+  "topic": "minutes",
+  "kind": "news",
+  "horizon": "this_gw",
   "stance": "positive",
+  "conviction": "strong",
   "claim": "one sentence stating what was said",
-  "quote": "verbatim snippet under 30 words",
-  "conviction": "strong"
+  "quote": "verbatim snippet under 30 words"
 }
 ```
 
@@ -91,11 +155,20 @@ One object per line, in this shape:
 `conviction` is one of strong / moderate / passing — how firmly it was asserted.
 `quote` must be genuinely verbatim so a claim can be audited. Do not clean it up.
 
-Be comprehensive on `owned_player`, `minutes_risk` and `captaincy`. Do not pad `misc`.
-Long videos are conversational and repetitive — extract the substance once, not every
-time a point is restated. A livestream is roughly 60-70% filler: ads, chat, and the same
-bench question answered twenty times. But read to the end regardless — confirmed team
-news arrives in the final lines, after the deadline, where it looks like ad content.
+**Name the speaker in every claim.** Your task prompt gives a `speaker:` name for each
+transcript. Use it — "Raptor is 99% likely to wildcard", never "the creator is 99% likely
+to wildcard". Consolidation exists to show which creators agree and which dissent, and a
+claim with an anonymous speaker cannot enter that comparison at all.
+
+Plural is different: "Creators see higher upside in City assets" is the speaker reporting
+what the community thinks, not referring to himself. Leave that as it is.
+
+Be comprehensive on `minutes`, `injury` and `captaincy`, and on anything you label `news`
+or `read` — those are the findings the model cannot produce for itself. Long videos are
+conversational and repetitive: extract the substance once, not every time a point is
+restated. A livestream is roughly 60-70% filler — ads, chat, and the same bench question
+answered twenty times. But read to the end regardless: confirmed team news arrives in the
+final lines, after the deadline, where it looks like ad content.
 
 ## A specific trap: a mangling can land on another real player's name
 

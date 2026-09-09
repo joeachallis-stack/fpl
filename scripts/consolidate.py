@@ -22,6 +22,7 @@ import json
 from pathlib import Path
 
 import claims
+import findings as findings_schema
 import roster
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,14 +33,9 @@ STANCE_MARK = {"positive": "+", "negative": "-", "neutral": "="}
 
 
 def load_findings(gw: int) -> list[dict]:
-    rows = []
-    for path in sorted(FINDINGS_DIR.glob(f"gw{gw:02d}_*.jsonl")):
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    rows.append(json.loads(line))
-    return rows
+    """Delegated, because a naive glob matches a batch and its migrated twin and counts
+    every finding twice — GW4 read as 194 findings from 97."""
+    return findings_schema.load(gw)
 
 
 def owned_elements() -> set[int]:
@@ -113,6 +109,14 @@ def main() -> None:
             "finished and data_checked.\n"
         )
 
+    schema_problems = findings_schema.validate(rows)
+    if schema_problems:
+        print(f"!! {len(schema_problems)} findings use a value outside the schema "
+              "vocabulary — these will not reach the right section of the brief:")
+        for problem in schema_problems[:10]:
+            print(f"   {problem['field']}={problem['value']!r}  \"{problem['claim']}\"")
+        print()
+
     contradictions = [c for r in rows for c in r["checks"] if c["verdict"] == "CONTRADICTED"]
     if contradictions:
         print(f"!! {len(contradictions)} claims contradicted by the record — "
@@ -153,7 +157,9 @@ def main() -> None:
         print(f"   {len(entries)} mentions, {len(creators)} creators   {split}")
         for _, row in sorted(entries, key=lambda e: e[1].get("published", ""), reverse=True)[:4]:
             mark = STANCE_MARK.get(row.get("stance"), "?")
-            print(f"     {mark} [{row['source']}/{row.get('conviction', '?')}] {row['claim'][:96]}")
+            topic = row.get("topic") or row.get("category") or "?"
+            kind = row.get("kind") or "?"
+            print(f"     {mark} [{row['source']}/{kind}/{topic}] {row['claim'][:88]}")
         print()
 
     if unresolved:

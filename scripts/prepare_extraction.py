@@ -27,6 +27,7 @@ import os
 from pathlib import Path
 
 import claims
+import findings as findings_schema
 import ledger
 import roster
 
@@ -131,8 +132,12 @@ def main() -> None:
         kind = "shorts" if batch is shorts else "long-form"
         print(f"\n  BATCH {n} ({kind}): {len(batch)} videos, {kb:.0f}KB")
         for size, row in batch:
+            # The speaker's name goes in the batch line because the agent writes it into
+            # every claim. Given only a feed slug, agents wrote "the creator", and an
+            # anonymous claim cannot be read back as agreement or dissent.
+            speaker = findings_schema.creator_name(row["source"])
             print(f"     {row['transcript_file']} | {row['video_id']} | {row['source']} "
-                  f"| {row['published'][:10]} | {row['title'][:46]}")
+                  f"| speaker: {speaker} | {row['published'][:10]} | {row['title'][:40]}")
 
 
 if __name__ == "__main__":

@@ -45,7 +45,7 @@ older rules, so re-reading a few high-value ones becomes a decision you can actu
 
 ### 2. Extract — one subagent per batch, **on Sonnet**
 
-Use `model: sonnet`. This is a tight spec with no open-ended judgment and four validation
+Use `model: sonnet`. This is a tight spec with no open-ended judgment and five validation
 layers behind it; Opus costs roughly five times as much for work the validators would
 catch anyway. Save Opus for step 3, where judgment actually happens.
 
@@ -55,8 +55,10 @@ the session limit and loses all five, which is how ten GW3 videos went unread on
 attempt.
 
 Each agent's prompt needs only: follow `.claude/skills/gameweek-brief/extraction_spec.md`,
-the batch's transcript paths with their `video_id` / `source` / `published`, the current
-gameweek and deadline, and the output path `news/findings/gwNN_batchN.jsonl`.
+the batch's transcript paths with their `video_id` / `source` / `speaker` / `published`,
+the current gameweek and deadline, and the output path `news/findings/gwNN_batchN.jsonl`.
+Copy the batch lines `prepare_extraction.py` prints — the `speaker:` name on each one is
+what the agent writes into every claim.
 
 **Agents write findings to that file and return only a short note.** A batch produces
 100+ findings; returning them as conversation text costs enormous context and risks
@@ -74,7 +76,7 @@ python scripts/consolidate.py --gw N --owned    # just the current squad
 ```
 
 Resolves every name, checks every falsifiable claim against the record, groups by player
-so agreement and dissent are visible. Contradictions print first.
+so agreement and dissent are visible. Schema violations print first, then contradictions.
 
 ### 4. Read it against the deterministic layer
 
@@ -103,9 +105,11 @@ Two thirds of the corpus is worth nothing, and reading it is worse than not read
   video previews Saturday.
 - **World Cup Fantasy is a different game.** These creators cover both on one channel.
 
-## The four validation layers
+## The five validation layers
 
-Each catches something the others cannot.
+Each catches something the others cannot. Layers 1-4 guard *identity* — they catch a
+fabricated player and say nothing about a fabricated category. Layer 5 was added when
+classification moved to three constrained fields.
 
 1. **Constrained vocabulary.** Agents may only emit complete roster lines —
    `Palmer (Chelsea, MID)`, never `Palmer`. Display names are not unique: 17 collide,
@@ -127,15 +131,55 @@ Each catches something the others cannot.
 
    It stays quiet on anything hedged or negated. A checker that cries wolf gets ignored.
 
-## Categories
+5. **Schema validation.** `findings.py` holds the allowed vocabulary for `topic`,
+   `kind`, `horizon`, `stance` and `conviction`, and `consolidate.py` reports every value
+   outside it before anything else. An unrecognised `topic` is worse than a wrong one: it
+   makes the finding silently invisible in the brief rather than visibly misfiled. It
+   reports and never repairs, for the same reason the unresolved-name report does.
 
-`owned_player`, `target`, `chip`, `fixtures`, `captaincy`, `minutes_risk`, `set_piece`,
-`price`, `creator_action`, `misc`.
+   `findings.py` also owns loading. `gw04_*.jsonl` matches both a batch and its migrated
+   `.v2` twin, and a naive glob counted every GW4 finding twice — 194 for a corpus of 97.
 
-`minutes_risk` is consistently the largest bucket and feeds the minutes model directly.
-`creator_action` — what a creator *did* with their own team — is stronger evidence than
-what they advise. `set_piece` and `price` are empty in Shorts and rich in long-form; that
-is a format artifact, not a dead category.
+## The three classification axes
+
+A finding is classified on three axes, not one. `extraction_spec.md` is authoritative;
+this is the summary of why they exist.
+
+- **`topic`** — what the claim is about: `minutes`, `injury`, `role`, `set_piece`,
+  `form`, `fixtures`, `price`, `captaincy`, `chip`, `transfer`.
+- **`kind`** — what type of information it is: `news`, `read`, `stat`,
+  `recommendation`, `action`.
+- **`horizon`** — when it bites: `this_gw`, `next_few`, `season`.
+
+Plus a `teams` array, so a claim about a club rather than a player ("Hull have conceded
+3.12 xG in two games") attaches to something instead of being lost.
+
+There is no `owned_player` or `target` category any more, and adding one back would be a
+mistake. Whether Joe owns a player is read from his actual squad downstream. Asking the
+extractor for it put half the corpus on a different axis from the rest and left it with
+no topic at all — 51% of 474 findings, of which a third were really minutes claims.
+
+`minutes` is consistently the largest bucket and feeds the minutes model directly.
+`kind` is the axis that decides reading order: `news` and `read` describe things the
+model structurally cannot see, while `stat` is usually a number `projections.py` already
+computes and is kept only as a cross-check. `action` — what a creator *did* with their
+own team — is stronger evidence than what they advise, and is deliberately separated
+from `recommendation` for that reason. `set_piece` and `price` are empty in Shorts and
+rich in long-form; that is a format artifact, not a dead category.
+
+## Name the speaker in every claim
+
+`prepare_extraction.py` prints a `speaker:` name on each batch line, resolved from
+`news/creators.json`. Claims must use it — "Raptor is 99% likely to wildcard", never
+"the creator is 99% likely to wildcard".
+
+This is not a style preference. The entire value of consolidation is seeing which
+creators agree and which dissent, and a claim with an anonymous speaker cannot enter that
+comparison. Findings from GW4 batch 1 were written as "the creator" and had to be
+rewritten from each row's `source` field afterwards.
+
+Plural is different and must be left alone: "Creators see higher upside in City assets"
+is the speaker reporting community consensus, not referring to himself.
 
 **Shorts are dense, not thin.** They are 8% of the text, which makes them look like the
 low-value tail — they are the opposite. A 60-second wildcard reveal is a full XI of
