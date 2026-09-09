@@ -1,11 +1,43 @@
 {
   "_comment": "Feed slug -> the name a claim should use. `short` is what goes inside a claim sentence, because that is how these creators are referred to in speech and how the GW3 corpus already reads. Derived from the channel slugs in scripts/fetch_news.py; correct an entry here if a channel's actual display name differs.",
-  "fplraptor":            {"display": "FPL Raptor", "short": "Raptor"},
-  "fplharry":             {"display": "FPL Harry", "short": "Harry"},
-  "fplgeneral":           {"display": "FPL General", "short": "FPL General"},
-  "fplblackbox":          {"display": "FPL BlackBox", "short": "BlackBox"},
-  "giannibuttice":        {"display": "Gianni Buttice", "short": "Gianni"},
-  "fantasyfootballscout": {"display": "Fantasy Football Scout", "short": "Scout"},
-  "fplhints":             {"display": "FPL Hints", "short": "FPL Hints"},
-  "fpltoolbox":           {"display": "FPL Toolbox", "short": "FPL Toolbox"}
+  "fplraptor": {
+    "display": "FPL Raptor",
+    "short": "Raptor"
+  },
+  "fplharry": {
+    "display": "FPL Harry",
+    "short": "Harry"
+  },
+  "fplgeneral": {
+    "display": "FPL General",
+    "short": "FPL General"
+  },
+  "fplblackbox": {
+    "display": "FPL BlackBox",
+    "short": "BlackBox"
+  },
+  "giannibuttice": {
+    "display": "Gianni Buttice",
+    "short": "Gianni"
+  },
+  "fantasyfootballscout": {
+    "display": "Fantasy Football Scout",
+    "short": "Scout"
+  },
+  "fplhints": {
+    "display": "FPL Hints",
+    "short": "FPL Hints"
+  },
+  "fpltoolbox": {
+    "display": "FPL Toolbox",
+    "short": "FPL Toolbox"
+  },
+  "fpltips": {
+    "display": "FPLtips",
+    "short": "FPLtips"
+  },
+  "letstalkfpl": {
+    "display": "Let's Talk FPL",
+    "short": "Let's Talk FPL"
+  }
 }
