@@ -9,10 +9,15 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import findings as findings_schema  # noqa: E402  (needs the path line above)
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -332,43 +337,358 @@ def _fixture_wall(
     return {"rows": rows, "gameweeks": list(range(1, 39))}
 
 
-def _expert_room(target_gw: int, relevant_names: set[str]) -> dict:
-    files = sorted((ROOT / "news" / "findings").glob(f"gw{target_gw:02d}_*.jsonl"))
-    findings = [row for path in files for row in load_jsonl(path)]
-    creator_counts = Counter(row.get("source", "Unknown") for row in findings)
-    by_player: dict[str, dict] = {}
+# How firmly a claim was asserted, as a weight on its stance. A passing remark and a
+# strongly argued case should not count the same in a consensus.
+CONVICTION_WEIGHT = {"strong": 1.0, "moderate": 0.6, "passing": 0.3}
+STANCE_SIGN = {"positive": 1.0, "negative": -1.0, "neutral": 0.0}
+
+# What the model structurally cannot produce for itself ranks highest. A cited statistic
+# is usually a number `projections.py` already computes, so it is kept as a cross-check
+# rather than as news.
+KIND_VALUE = {"news": 3, "read": 2, "recommendation": 1, "action": 1, "stat": 0}
+
+CHIP_PATTERNS = {
+    "Wildcard": r"wildcard|\bwc\b",
+    "Free Hit": r"free.?hit",
+    "Bench Boost": r"bench.?boost",
+    "Triple Captain": r"triple.?captain|\btc\b",
+}
+
+# Above this gap between creator consensus and the model's own ranking, the row is worth
+# looking at whichever way it points. Not a threshold for action — a threshold for reading.
+DISAGREEMENT_FLAG = 0.8
+
+
+def _load_findings(target_gw: int) -> tuple[list[dict], str, int]:
+    """Delegated to `findings.py` so the adapter and the CLI brief can never disagree
+    about which files count. A naive glob matches a batch and its migrated twin."""
+    paths = findings_schema.paths(target_gw)
+    schema = "v2" if any(p.name.endswith(".v2.jsonl") for p in paths) else "legacy"
+    return findings_schema.load(target_gw), schema, len(paths)
+
+
+def _finding_view(finding: dict) -> dict:
+    return {
+        "creator": finding.get("source"),
+        "published": finding.get("published"),
+        "topic": finding.get("topic") or finding.get("category"),
+        "kind": finding.get("kind"),
+        "horizon": finding.get("horizon"),
+        "stance": finding.get("stance", "neutral"),
+        "conviction": finding.get("conviction"),
+        "claim": finding.get("claim"),
+        "quote": finding.get("quote"),
+        "videoId": finding.get("video_id"),
+        "players": finding.get("players", []),
+        "teams": finding.get("teams", []),
+        "inferred": finding.get("inferred", []),
+    }
+
+
+def _stance_weight(finding: dict) -> float:
+    sign = STANCE_SIGN.get(finding.get("stance", "neutral"), 0.0)
+    return sign * CONVICTION_WEIGHT.get(finding.get("conviction"), 0.6)
+
+
+def _player_index(elements: dict, teams: dict) -> dict[tuple[str, str], int]:
+    """Keyed by (web name, team name), because display names collide — there are two
+    Palmers. A finding's `players` entry carries the team, so the collision is decidable."""
+    index: dict[tuple[str, str], int] = {}
+    for element_id, element in elements.items():
+        team = teams.get(element["team"], {}).get("name", "")
+        index[(element.get("web_name", ""), team)] = element_id
+    return index
+
+
+def _resolve_finding_player(entry: str, index: dict, elements: dict) -> int | None:
+    name, _, rest = entry.partition(" (")
+    team = rest.split(",")[0].strip() if rest else ""
+    if (name, team) in index:
+        return index[(name, team)]
+    matches = [pid for (pname, _team), pid in index.items() if pname == name]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _model_signal(projections: dict, elements: dict) -> dict[int, float]:
+    """Each player's six-week outlook as a percentile within their own position,
+    rescaled to [-1, 1] so it is directly comparable with creator consensus."""
+    by_position: dict[str, list[tuple[int, float]]] = defaultdict(list)
+    for raw_id, projection in projections.items():
+        horizon = projection.get("horizon_xP")
+        if horizon is None:
+            continue
+        by_position[projection.get("position", "?")].append((int(raw_id), float(horizon)))
+    signal: dict[int, float] = {}
+    for rows in by_position.values():
+        rows.sort(key=lambda row: row[1])
+        last = len(rows) - 1
+        for rank, (player_id, _xp) in enumerate(rows):
+            signal[player_id] = 2.0 * (rank / last) - 1.0 if last else 0.0
+    return signal
+
+
+def _expert_player_rows(
+    findings: list[dict],
+    elements: dict,
+    teams: dict,
+    projections: dict,
+    owned: set[int],
+    target_gw: int,
+    corpus_creators: int,
+) -> list[dict]:
+    index = _player_index(elements, teams)
+    signal = _model_signal(projections, elements)
+    grouped: dict[int, list[dict]] = defaultdict(list)
     for finding in findings:
-        for raw_name in finding.get("players", []):
-            name = raw_name.split(" (", 1)[0]
-            if relevant_names and name not in relevant_names:
-                continue
-            row = by_player.setdefault(
-                name,
-                {"player": name, "positive": 0, "negative": 0, "neutral": 0, "findings": []},
-            )
-            stance = finding.get("stance", "neutral")
-            bucket = stance if stance in {"positive", "negative", "neutral"} else "neutral"
-            row[bucket] += 1
-            row["findings"].append(
-                {
-                    "creator": finding.get("source"),
-                    "published": finding.get("published"),
-                    "category": finding.get("category"),
-                    "stance": stance,
-                    "claim": finding.get("claim"),
-                    "conviction": finding.get("conviction"),
-                    "videoId": finding.get("video_id"),
-                }
-            )
+        for entry in finding.get("players", []):
+            player_id = _resolve_finding_player(entry, index, elements)
+            if player_id is not None:
+                grouped[player_id].append(finding)
+
+    rows = []
+    for player_id, group in grouped.items():
+        element = elements.get(player_id)
+        if element is None:
+            continue
+        projection = projections.get(str(player_id), {})
+        week = _week_projection(projection, target_gw) or {}
+        weights = [_stance_weight(f) for f in group]
+        magnitude = sum(abs(w) for w in weights)
+        net = sum(weights) / magnitude if magnitude else 0.0
+        # One creator saying something once is not the same evidence as two creators
+        # agreeing, but a raw net stance saturates at 1.0 for both. Scaling by how many
+        # of the available creators actually spoke keeps a single passing mention from
+        # outranking real agreement.
+        speakers = len({f.get("source") for f in group})
+        support = speakers / corpus_creators if corpus_creators else 0.0
+        consensus = net * min(1.0, support)
+        model = signal.get(player_id, 0.0)
+        counts = Counter(f.get("stance", "neutral") for f in group)
+        sharpest = max(group, key=lambda f: (
+            abs(_stance_weight(f)), KIND_VALUE.get(f.get("kind"), 0)))
+        rows.append({
+            "id": player_id,
+            "name": element.get("web_name"),
+            "team": teams.get(element["team"], {}).get("short_name"),
+            "position": projection.get("position") or "?",
+            "price": element.get("now_cost"),
+            "owned": player_id in owned,
+            "status": element.get("status", "a"),
+            "news": element.get("news") or None,
+            "positive": counts.get("positive", 0),
+            "negative": counts.get("negative", 0),
+            "neutral": counts.get("neutral", 0),
+            "mentions": len(group),
+            "creators": len({f.get("source") for f in group}),
+            "netStance": round(net, 3),
+            "support": round(min(1.0, support), 3),
+            "consensus": round(consensus, 3),
+            "modelSignal": round(model, 3),
+            "disagreement": round(consensus - model, 3),
+            "disagrees": abs(consensus - model) >= DISAGREEMENT_FLAG,
+            "gameweekXP": week.get("xP", projection.get("xP")),
+            "horizonXP": projection.get("horizon_xP"),
+            "expectedMinutes": projection.get("exp_minutes"),
+            "topClaim": _finding_view(sharpest),
+            "findings": [_finding_view(f) for f in sorted(
+                group, key=lambda f: (-KIND_VALUE.get(f.get("kind"), 0),
+                                      -abs(_stance_weight(f))))],
+        })
+    return rows
+
+
+def _expert_room(
+    target_gw: int,
+    elements: dict,
+    teams: dict,
+    projections: dict,
+    owned: set[int],
+    bank: float,
+) -> dict:
+    findings, schema, file_count = _load_findings(target_gw)
+    if not findings:
+        return {
+            "targetGw": target_gw,
+            "state": "empty",
+            "emptyMessage": f"No GW{target_gw} creator findings have been extracted yet.",
+            "corpus": {"findings": 0, "creators": 0, "videos": 0, "files": 0},
+            "sections": {},
+        }
+
+    corpus_creators = len({f.get("source") for f in findings})
+    rows = _expert_player_rows(
+        findings, elements, teams, projections, owned, target_gw, corpus_creators)
+    by_id = {row["id"]: row for row in rows}
+    # An owned player nobody mentioned still belongs in the squad table. Silence about a
+    # starter is a fact about the week, and dropping the row hides it.
+    signal = _model_signal(projections, elements)
+    for player_id in owned - set(by_id):
+        element = elements.get(player_id)
+        if element is None:
+            continue
+        projection = projections.get(str(player_id), {})
+        week = _week_projection(projection, target_gw) or {}
+        row = {
+            "id": player_id,
+            "name": element.get("web_name"),
+            "team": teams.get(element["team"], {}).get("short_name"),
+            "position": projection.get("position") or "?",
+            "price": element.get("now_cost"),
+            "owned": True,
+            "status": element.get("status", "a"),
+            "news": element.get("news") or None,
+            "positive": 0, "negative": 0, "neutral": 0,
+            "mentions": 0, "creators": 0,
+            "netStance": 0.0, "support": 0.0, "consensus": 0.0,
+            "modelSignal": round(signal.get(player_id, 0.0), 3),
+            "disagreement": 0.0,
+            "disagrees": False,
+            "gameweekXP": week.get("xP", projection.get("xP")),
+            "horizonXP": projection.get("horizon_xP"),
+            "expectedMinutes": projection.get("exp_minutes"),
+            "topClaim": None,
+            "findings": [],
+        }
+        rows.append(row)
+        by_id[player_id] = row
+
+    # Section 1 — only what the model cannot see, dated to this deadline, about a player
+    # who is either in the squad or has a real chance of entering it.
+    considered = owned | {row["id"] for row in rows
+                          if not row["owned"] and row["consensus"] > 0}
+    index = _player_index(elements, teams)
+    act_now = []
+    for finding in findings:
+        if finding.get("kind") not in {"news", "read"}:
+            continue
+        if finding.get("horizon") not in {"this_gw", None}:
+            continue
+        if finding.get("conviction") == "passing":
+            continue
+        touched = {_resolve_finding_player(e, index, elements)
+                   for e in finding.get("players", [])} & considered
+        if not touched:
+            continue
+        view = _finding_view(finding)
+        view["owned"] = bool(touched & owned)
+        view["playerIds"] = sorted(pid for pid in touched if pid is not None)
+        act_now.append(view)
+    # A kind that a rule actually determined outranks one the migration defaulted to.
+    # Without this the section fills with rows whose information type was never
+    # established, which is exactly the overstatement this room is meant to avoid.
+    act_now.sort(key=lambda v: (
+        "kind" in (v.get("inferred") or []),
+        not v["owned"],
+        -KIND_VALUE.get(v["kind"], 0),
+        -CONVICTION_WEIGHT.get(v["conviction"], 0.6),
+    ))
+
+    squad = sorted((row for row in rows if row["owned"]),
+                   key=lambda row: (row["mentions"] == 0,
+                                    row["consensus"] + row["modelSignal"]))
+    # Current price, not selling price: purchase prices are not in this payload, so the
+    # affordability flag is an approximation and the UI says so.
+    owned_by_position: dict[str, list[float]] = defaultdict(list)
+    for row in rows:
+        if row["owned"] and row["price"] is not None:
+            owned_by_position[row["position"]].append(float(row["price"]))
+    for row in rows:
+        headroom = max(owned_by_position.get(row["position"], [0.0]) or [0.0])
+        row["affordable"] = (row["price"] or 0) <= headroom + (bank or 0)
+
+    targets = sorted(
+        (row for row in rows if not row["owned"] and row["consensus"] > 0),
+        key=lambda row: -(row["consensus"] + row["modelSignal"]),
+    )
+    fades = sorted(
+        (row for row in rows if row["consensus"] < 0),
+        key=lambda row: row["consensus"] + row["modelSignal"],
+    )
+
+    captain_findings = [_finding_view(f) for f in findings
+                        if f.get("topic") == "captaincy"
+                        and f.get("horizon") in {"this_gw", None}]
+    model_captains = sorted(
+        (row for row in (by_id.get(pid) for pid in owned) if row),
+        key=lambda row: -float(row["gameweekXP"] or 0),
+    )[:5]
+    if len(model_captains) < 5:
+        pool = [(pid, projections.get(str(pid), {})) for pid in owned]
+        model_captains = [
+            {
+                "id": pid,
+                "name": elements[pid].get("web_name"),
+                "team": teams.get(elements[pid]["team"], {}).get("short_name"),
+                "gameweekXP": (_week_projection(proj, target_gw) or {}).get("xP", proj.get("xP")),
+            }
+            for pid, proj in sorted(
+                pool, key=lambda item: -float(
+                    (_week_projection(item[1], target_gw) or {}).get(
+                        "xP", item[1].get("xP")) or 0))
+        ][:5]
+
+    chips = []
+    for chip, pattern in CHIP_PATTERNS.items():
+        matched = [_finding_view(f) for f in findings
+                   if f.get("topic") == "chip"
+                   and re.search(pattern, f"{f.get('claim', '')} {f.get('quote', '')}", re.I)]
+        if matched:
+            chips.append({"chip": chip, "findings": matched,
+                          "mentions": len(matched),
+                          "creators": sorted({f["creator"] for f in matched})})
+
+    # Club and league claims only. A creator's own-team statement with no player named
+    # is not context about a club — it belongs in section 8, and letting it fall through
+    # here filled "league-wide" with wildcard plans.
+    context: dict[str, list[dict]] = defaultdict(list)
+    for finding in findings:
+        if finding.get("players") or finding.get("kind") == "action":
+            continue
+        for team_name in finding.get("teams", []) or ["League-wide"]:
+            context[team_name].append(_finding_view(finding))
+    context_rows = sorted(
+        ({"team": name, "findings": items, "mentions": len(items)}
+         for name, items in context.items()),
+        key=lambda row: -row["mentions"],
+    )
+
+    actions = [_finding_view(f) for f in findings if f.get("kind") == "action"]
+    unresolved = Counter(name for f in findings for name in f.get("unresolved", []))
+    inferred = Counter(field for f in findings for field in f.get("inferred", []))
+    published = sorted({f.get("published") for f in findings if f.get("published")})
+
     return {
         "targetGw": target_gw,
-        "files": len(files),
-        "findings": len(findings),
-        "creators": len(creator_counts),
-        "creatorCounts": dict(creator_counts),
-        "players": sorted(by_player.values(), key=lambda row: -len(row["findings"])),
-        "state": "empty" if not findings else "valid",
-        "emptyMessage": f"No GW{target_gw} creator findings have been extracted yet.",
+        "state": "valid",
+        "corpus": {
+            "findings": len(findings),
+            "creators": len({f.get("source") for f in findings}),
+            "videos": len({f.get("video_id") for f in findings}),
+            "files": file_count,
+            "schema": schema,
+            "creatorCounts": dict(Counter(f.get("source", "Unknown") for f in findings)),
+            "publishedFrom": published[0] if published else None,
+            "publishedTo": published[-1] if published else None,
+            "noTopic": sum(1 for f in findings if not (f.get("topic") or f.get("category"))),
+            "inferredFields": dict(inferred),
+        },
+        "sections": {
+            "actNow": act_now[:10],
+            "squad": squad,
+            "targets": targets,
+            "fades": fades,
+            "captaincy": {"creators": captain_findings, "model": model_captains},
+            "chips": chips,
+            "context": context_rows,
+            "creatorActions": actions,
+        },
+        "quality": {
+            "unresolved": [{"name": name, "count": n}
+                           for name, n in unresolved.most_common(20)],
+            "inferredFields": dict(inferred),
+            "disagreementThreshold": DISAGREEMENT_FLAG,
+            "affordabilityNote": "Affordability uses current price, not selling price.",
+        },
     }
 
 
@@ -591,7 +911,14 @@ def build_analysis(root: Path = ROOT) -> dict:
             "playerPool": player_pool,
             "plans": plans,
             "fixtureWall": _fixture_wall(bootstrap, fixtures, projections, owned_team_ids),
-            "experts": _expert_room(target_gw, relevant_names),
+            "experts": _expert_room(
+                target_gw,
+                elements,
+                teams,
+                projections,
+                set(decisions["current"]["squad"]),
+                decisions["current"].get("bank") or 0,
+            ),
             "modelForm": _model_form(evaluation, target_gw),
             "journal": {"entries": journal_entries, "recorded": bool(journal_entries)},
             "actions": {

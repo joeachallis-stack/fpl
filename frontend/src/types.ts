@@ -1,3 +1,52 @@
+export type ExpertKind = 'news' | 'read' | 'stat' | 'recommendation' | 'action'
+export type ExpertHorizon = 'this_gw' | 'next_few' | 'season'
+
+export type ExpertFinding = {
+  creator: string
+  published: string
+  topic: string | null
+  kind: ExpertKind | null
+  horizon: ExpertHorizon | null
+  stance: 'positive' | 'negative' | 'neutral'
+  conviction: string | null
+  claim: string
+  quote: string | null
+  videoId: string
+  players: string[]
+  teams: string[]
+  inferred: string[]
+  owned?: boolean
+  playerIds?: number[]
+}
+
+export type ExpertPlayerRow = {
+  id: number
+  name: string
+  team: string | null
+  position: string
+  price: number | null
+  owned: boolean
+  status: string
+  news: string | null
+  positive: number
+  negative: number
+  neutral: number
+  mentions: number
+  creators: number
+  netStance: number
+  support: number
+  consensus: number
+  modelSignal: number
+  disagreement: number
+  disagrees: boolean
+  affordable?: boolean
+  gameweekXP: number | null
+  horizonXP: number | null
+  expectedMinutes: number | null
+  topClaim: ExpertFinding | null
+  findings: ExpertFinding[]
+}
+
 export type Room = 'gameweek' | 'experts' | 'fixtures' | 'model'
 
 export type Player = {
@@ -127,27 +176,39 @@ export type Analysis = {
   }
   experts: {
     targetGw: number
-    files: number
-    findings: number
-    creators: number
-    creatorCounts: Record<string, number>
-    players: Array<{
-      player: string
-      positive: number
-      negative: number
-      neutral: number
-      findings: Array<{
-        creator: string
-        published: string
-        category: string
-        stance: string
-        claim: string
-        conviction: string
-        videoId: string
-      }>
-    }>
     state: 'empty' | 'valid'
-    emptyMessage: string
+    emptyMessage?: string
+    corpus: {
+      findings: number
+      creators: number
+      videos: number
+      files: number
+      schema?: 'v2' | 'legacy'
+      creatorCounts?: Record<string, number>
+      publishedFrom?: string | null
+      publishedTo?: string | null
+      noTopic?: number
+      inferredFields?: Record<string, number>
+    }
+    sections: {
+      actNow?: ExpertFinding[]
+      squad?: ExpertPlayerRow[]
+      targets?: ExpertPlayerRow[]
+      fades?: ExpertPlayerRow[]
+      captaincy?: {
+        creators: ExpertFinding[]
+        model: Array<{ id: number; name: string; team: string | null; gameweekXP: number | null }>
+      }
+      chips?: Array<{ chip: string; findings: ExpertFinding[]; mentions: number; creators: string[] }>
+      context?: Array<{ team: string; findings: ExpertFinding[]; mentions: number }>
+      creatorActions?: ExpertFinding[]
+    }
+    quality?: {
+      unresolved: Array<{ name: string; count: number }>
+      inferredFields: Record<string, number>
+      disagreementThreshold: number
+      affordabilityNote: string
+    }
   }
   modelForm: {
     resolvedMinutesGameweeks: number[]

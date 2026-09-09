@@ -1,6 +1,6 @@
-import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { deadlineLabel, expectedPoints, fixtureLabel, money, signed, sourceLabel } from './format'
-import type { Analysis, Fixture, Plan, Player, PlayerPoolEntry, Room } from './types'
+import type { Analysis, ExpertFinding, ExpertPlayerRow, Fixture, Plan, Player, PlayerPoolEntry, Room } from './types'
 
 const rooms: Array<{ id: Room; label: string; number: string }> = [
   { id: 'gameweek', label: 'My gameweek', number: '01' },
@@ -186,7 +186,7 @@ function ReadinessRibbon({ analysis }: { analysis: Analysis }) {
         <small>Market: GW{readiness.bookmakerWeeks.join('–')} · fallback: GW{readiness.fallbackWeeks.join('–')}</small>
       </div>
       <div className="readiness-stat compact">
-        <span>Expert corpus</span><strong>{experts.findings ? `${experts.findings} findings` : 'Not started'}</strong>
+        <span>Expert corpus</span><strong>{experts.corpus.findings ? `${experts.corpus.findings} findings` : 'Not started'}</strong>
       </div>
       <div className="readiness-stat compact">
         <span>Freeze</span><strong>{allArchived ? 'Recorded' : 'Pending'}</strong>
@@ -493,48 +493,280 @@ function JournalForm({ analysis, plan, onClose, onRecorded }: { analysis: Analys
   )
 }
 
+const KIND_LABEL: Record<string, string> = {
+  news: 'news', read: 'eye test', stat: 'stat', recommendation: 'advice', action: 'own team',
+}
+const HORIZON_LABEL: Record<string, string> = {
+  this_gw: 'this GW', next_few: 'next few', season: 'season',
+}
+
+function num(value: number | null | undefined, places = 1) {
+  return value == null ? '—' : value.toFixed(places)
+}
+
+/** A signed consensus, drawn from the centre so direction reads before magnitude. */
+function StanceBar({ value, raw, support }: { value: number; raw: number; support: number }) {
+  const width = Math.min(50, Math.abs(value) * 50)
+  return (
+    <span className="stance-bar" title={`net stance ${raw.toFixed(2)}, spoken by ${Math.round(support * 100)}% of the creators in this corpus`}>
+      <span className="stance-bar-axis" />
+      <span
+        className={value < 0 ? 'stance-bar-fill negative' : 'stance-bar-fill positive'}
+        style={value < 0 ? { right: '50%', width } : { left: '50%', width }}
+      />
+    </span>
+  )
+}
+
+function KindTag({ finding }: { finding: ExpertFinding }) {
+  const kind = finding.kind ?? 'read'
+  const uncertain = finding.inferred?.includes('kind')
+  return (
+    <span className={`kind-tag kind-${kind}`} title={uncertain ? 'kind inferred by fallback, not by rule' : undefined}>
+      {KIND_LABEL[kind] ?? kind}{uncertain && <sup className="kind-inferred">?</sup>}
+    </span>
+  )
+}
+
+function ClaimLine({ finding }: { finding: ExpertFinding }) {
+  return (
+    <li className={`claim-line stance-${finding.stance}`}>
+      <KindTag finding={finding} />
+      <span className="claim-creator">{finding.creator}</span>
+      <span className="claim-text">{finding.claim}</span>
+      {finding.horizon && <span className="claim-horizon">{HORIZON_LABEL[finding.horizon]}</span>}
+    </li>
+  )
+}
+
+type ColumnSet = 'squad' | 'market'
+
+function ExpertTable({
+  rows, columns, onSelectPlayer, emptyLabel,
+}: {
+  rows: ExpertPlayerRow[]
+  columns: ColumnSet
+  onSelectPlayer: (id: number) => void
+  emptyLabel: string
+}) {
+  if (!rows.length) return <p className="section-empty">{emptyLabel}</p>
+  return (
+    <div className="expert-table-wrap">
+      <table className="expert-table">
+        <thead>
+          <tr>
+            <th className="col-player">Player</th>
+            <th>Pos</th>
+            <th className="num">£</th>
+            {columns === 'market' && <th className="num" title="Affordable from the bank plus your most expensive player in this position, at current price">Fits</th>}
+            <th className="num" title="Model expected points this gameweek">xP</th>
+            <th className="num" title="Model expected points over six gameweeks">6GW</th>
+            <th className="num" title="Creators mentioning this player">Say</th>
+            <th className="col-stance" title="Net stance weighted by conviction, then scaled by how many of the corpus's creators actually discussed him">Consensus</th>
+            <th className="num" title="Model rank within position, rescaled to -1..1">Model</th>
+            <th className="num" title="Consensus minus model. Negative: the model rates him higher than the creators do.">&Delta;</th>
+            <th className="col-claim">Sharpest claim</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.id}
+              className={row.disagrees ? 'row-disagrees' : undefined}
+              onClick={() => onSelectPlayer(row.id)}
+              tabIndex={0}
+              onKeyDown={(event) => event.key === 'Enter' && onSelectPlayer(row.id)}
+            >
+              <td className="col-player">
+                <strong>{row.name}</strong>
+                <span className="row-team">{row.team}</span>
+                {row.status !== 'a' && <span className="row-flag" title={row.news ?? 'flagged'}>!</span>}
+              </td>
+              <td>{row.position}</td>
+              <td className="num">{money(row.price)}</td>
+              {columns === 'market' && (
+                <td className="num">{row.affordable ? <span className="fits-yes">yes</span> : <span className="fits-no">no</span>}</td>
+              )}
+              <td className="num">{num(row.gameweekXP)}</td>
+              <td className="num strong">{num(row.horizonXP)}</td>
+              <td className="num">{row.mentions ? `${row.creators}/${row.mentions}` : '—'}</td>
+              <td className="col-stance">
+                {row.mentions ? <StanceBar value={row.consensus} raw={row.netStance} support={row.support} /> : <span className="no-coverage">no coverage</span>}
+              </td>
+              <td className="num">{num(row.modelSignal, 2)}</td>
+              <td className={`num ${row.disagrees ? 'delta-flag' : ''}`}>{row.mentions ? num(row.disagreement, 2) : '—'}</td>
+              <td className="col-claim">
+                {row.topClaim ? (
+                  <>
+                    <KindTag finding={row.topClaim} />
+                    <span className={`claim-text stance-${row.topClaim.stance}`}>{row.topClaim.claim}</span>
+                  </>
+                ) : (
+                  <span className="no-coverage">nobody discussed him this week</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ExpertSection({ n, title, note, children }: { n: string; title: string; note?: string; children: ReactNode }) {
+  return (
+    <section className="expert-section">
+      <header><span className="section-number">{n}</span><h2>{title}</h2>{note && <p>{note}</p>}</header>
+      {children}
+    </section>
+  )
+}
+
 function ExpertRoom({ analysis, selectedPlan, onSelectPlayer }: { analysis: Analysis; selectedPlan: Plan; onSelectPlayer: (id: number) => void }) {
+  const { corpus, sections, quality } = analysis.experts
   const relevant = new Set([
     ...selectedPlan.transfersIn.map((row) => row.name),
-    ...selectedPlan.transfersOut.map((row) => row.name),
     ...selectedPlan.lineup.starters.map((id) => analysis.players[String(id)]?.name),
   ])
-  const playerIdByName = useMemo(() => Object.fromEntries(Object.values(analysis.players).map((player) => [player.name, player.id])), [analysis.players])
-  return (
-    <>
-      <div className="room-heading expert-heading">
-        <div><span className="eyebrow">Creator evidence</span><h1>Expert room</h1></div>
-        <div className="coverage-ticket"><strong>{analysis.experts.findings}</strong><span>findings</span><strong>{analysis.experts.creators}</strong><span>creators</span></div>
-      </div>
-      {analysis.experts.state === 'empty' ? (
+
+  if (analysis.experts.state === 'empty') {
+    return (
+      <>
+        <div className="room-heading expert-heading">
+          <div><span className="eyebrow">Creator evidence</span><h1>Expert room</h1></div>
+        </div>
         <section className="expert-empty">
           <div className="empty-microphones" aria-hidden="true"><span /><span /><span /></div>
           <span className="state-ticket">Corpus empty for this gameweek</span>
           <h2>{analysis.experts.emptyMessage}</h2>
-          <p>The room will group extracted claims by player and keep dissent visible. It will not turn repeated opinions into a synthetic score.</p>
+          <p>The room will group extracted claims by decision and keep dissent visible. It will not turn repeated opinions into a synthetic score.</p>
           <div className="affected-list"><strong>First players to watch</strong>{[...relevant].filter(Boolean).slice(0, 6).map((name) => <span key={name}>{name}</span>)}</div>
         </section>
-      ) : (
-        <div className="expert-grid">
-          <section className="consensus-board">
-            <span className="eyebrow">What could change the call</span>
-            {analysis.experts.players.map((row) => (
-              <button key={row.player} onClick={() => playerIdByName[row.player] && onSelectPlayer(playerIdByName[row.player])}>
-                <strong>{row.player}</strong><span className="stance positive">{row.positive} positive</span><span className="stance negative">{row.negative} negative</span><small>{row.findings.length} verified extractions</small>
-              </button>
-            ))}
-          </section>
-          <section className="claim-board">
-            {analysis.experts.players.flatMap((row) => row.findings.slice(0, 2).map((finding) => (
-              <article key={`${finding.videoId}-${row.player}-${finding.category}`}>
-                <div><strong>{finding.creator}</strong><span>{finding.published}</span></div>
-                <h3>{row.player} · {finding.category.replaceAll('_', ' ')}</h3>
-                <p>{finding.claim}</p>
-              </article>
-            )))}
-          </section>
+      </>
+    )
+  }
+
+  const inferredKind = corpus.inferredFields?.kind ?? 0
+  const inferredHere = (sections.actNow ?? []).filter((f) => f.inferred?.includes('kind')).length
+
+  return (
+    <>
+      <div className="room-heading expert-heading">
+        <div><span className="eyebrow">Creator evidence · GW{analysis.experts.targetGw}</span><h1>Expert room</h1></div>
+      </div>
+
+      <div className="corpus-strip">
+        <div><strong>{corpus.findings}</strong><span>findings</span></div>
+        <div><strong>{corpus.creators}</strong><span>creators</span></div>
+        <div><strong>{corpus.videos}</strong><span>videos</span></div>
+        <div><strong>{corpus.publishedTo ?? '—'}</strong><span>latest</span></div>
+        <div className="corpus-warn"><strong>{inferredKind}</strong><span>kind inferred, not stated</span></div>
+      </div>
+
+      <ExpertSection
+        n="01"
+        title="Act on this"
+        note={`Reported news and eye-test reads dated to this deadline, about a player you own or could realistically buy — the claims the model cannot produce for itself. ${inferredHere} of these ${(sections.actNow ?? []).length} carry a kind the migration inferred rather than the extractor stating it, and are ranked last; treat them as weaker.`}
+      >
+        <ul className="act-list">
+          {(sections.actNow ?? []).map((finding, i) => (
+            <li key={`${finding.videoId}-${i}`} className={`act-row stance-${finding.stance}`}>
+              <KindTag finding={finding} />
+              <span className="owned-tag">{finding.owned ? 'owned' : ''}</span>
+              <span className="act-players">{finding.players.map((p) => p.split(' (')[0]).join(', ') || '—'}</span>
+              <span className="act-claim">{finding.claim}</span>
+              <span className="act-meta">{finding.creator} · {finding.conviction}</span>
+            </li>
+          ))}
+          {!(sections.actNow ?? []).length && <li className="section-empty">Nothing this week that the model cannot already see.</li>}
+        </ul>
+      </ExpertSection>
+
+      <ExpertSection
+        n="02"
+        title="Your squad"
+        note="Worst combined view first — creator consensus and model rank together. A highlighted Δ means the two disagree; that row is worth reading before you sell."
+      >
+        <ExpertTable rows={sections.squad ?? []} columns="squad" onSelectPlayer={onSelectPlayer} emptyLabel="No squad rows." />
+      </ExpertSection>
+
+      <ExpertSection n="03" title="Targets" note={`Discussed positively and not owned. ${quality?.affordabilityNote ?? ''}`}>
+        <ExpertTable rows={(sections.targets ?? []).slice(0, 25)} columns="market" onSelectPlayer={onSelectPlayer} emptyLabel="No positively discussed players outside the squad." />
+      </ExpertSection>
+
+      <ExpertSection n="04" title="Avoid and fade" note="Negative consensus — including players you own. Check here before buying into something the creators already flagged.">
+        <ExpertTable rows={(sections.fades ?? []).slice(0, 20)} columns="market" onSelectPlayer={onSelectPlayer} emptyLabel="Nobody was argued against this week." />
+      </ExpertSection>
+
+      <ExpertSection n="05" title="Captaincy" note="Creator picks beside your own model's top expected points this gameweek.">
+        <div className="captain-split">
+          <div>
+            <h3>What they said</h3>
+            <ul className="claim-list">
+              {(sections.captaincy?.creators ?? []).map((finding, i) => <ClaimLine key={`${finding.videoId}-${i}`} finding={finding} />)}
+              {!(sections.captaincy?.creators ?? []).length && <li className="section-empty">No captaincy claims for this gameweek.</li>}
+            </ul>
+          </div>
+          <div>
+            <h3>Model top five</h3>
+            <table className="expert-table compact">
+              <tbody>
+                {(sections.captaincy?.model ?? []).map((row, i) => (
+                  <tr key={row.id} onClick={() => onSelectPlayer(row.id)}>
+                    <td className="num rank">{i + 1}</td>
+                    <td><strong>{row.name}</strong> <span className="row-team">{row.team}</span></td>
+                    <td className="num strong">{num(row.gameweekXP)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
+      </ExpertSection>
+
+      <ExpertSection n="06" title="Chips" note="What the creators are planning, and when. Long-range windows live here rather than in the sections above.">
+        <div className="chip-grid">
+          {(sections.chips ?? []).map((chip) => (
+            <article key={chip.chip} className="chip-block">
+              <header><h3>{chip.chip}</h3><span>{chip.mentions} claims · {chip.creators.join(', ')}</span></header>
+              <ul className="claim-list">{chip.findings.slice(0, 6).map((finding, i) => <ClaimLine key={`${finding.videoId}-${i}`} finding={finding} />)}</ul>
+            </article>
+          ))}
+          {!(sections.chips ?? []).length && <p className="section-empty">No chip discussion in this corpus.</p>}
+        </div>
+      </ExpertSection>
+
+      <ExpertSection n="07" title="Team and league context" note="Claims about a club rather than a player. Read these against the fixture wall.">
+        <div className="context-grid">
+          {(sections.context ?? []).slice(0, 8).map((row) => (
+            <article key={row.team} className="context-block">
+              <h3>{row.team}</h3>
+              <ul className="claim-list">{row.findings.slice(0, 4).map((finding, i) => <ClaimLine key={`${finding.videoId}-${i}`} finding={finding} />)}</ul>
+            </article>
+          ))}
+          {!(sections.context ?? []).length && <p className="section-empty">No team-level claims extracted.</p>}
+        </div>
+      </ExpertSection>
+
+      <ExpertSection n="08" title="What they actually did" note="Their own teams, not their advice. Revealed preference is a different signal from a recommendation.">
+        <ul className="claim-list two-col">
+          {(sections.creatorActions ?? []).slice(0, 24).map((finding, i) => <ClaimLine key={`${finding.videoId}-${i}`} finding={finding} />)}
+          {!(sections.creatorActions ?? []).length && <li className="section-empty">No own-team statements extracted.</li>}
+        </ul>
+      </ExpertSection>
+
+      <details className="expert-quality">
+        <summary>09 · Extraction quality — {quality?.unresolved.length ?? 0} unresolved names, {corpus.noTopic ?? 0} untopiced findings</summary>
+        <p>
+          Findings whose <code>kind</code> was inferred by fallback rather than stated: {inferredKind} of {corpus.findings}.
+          Horizon inferred: {corpus.inferredFields?.horizon ?? 0}. Corpus schema: {corpus.schema}.
+          Migrated rows carry weaker horizons than freshly extracted ones; treat the timeframe as a hint, not a fact.
+        </p>
+        <ul className="unresolved-list">
+          {(quality?.unresolved ?? []).map((row) => <li key={row.name}><span className="num">{row.count}&times;</span> {row.name}</li>)}
+          {!(quality?.unresolved ?? []).length && <li>Every name in this corpus resolved to the roster.</li>}
+        </ul>
+      </details>
     </>
   )
 }
