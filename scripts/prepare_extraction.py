@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import os
 from pathlib import Path
@@ -103,9 +104,22 @@ def main() -> None:
     # Flagged zero-minute players still matter in return-timeline discussions. Saliba
     # was omitted from the GW4 vocabulary because he had no minutes or ownership, then
     # appeared in a creator's analysis of Konsa's future minutes risk as "Celiba".
+    #
+    # Colliding display names are kept whatever their minutes. A trim that leaves one
+    # Davies visible and hides the other two turns an ambiguity into a confident wrong
+    # answer: the extractor sees a single match, resolves it, and nothing downstream can
+    # tell that a choice was ever made. Showing every claimant is what lets `roster.py`
+    # report "ambiguous" and the finding be flagged instead of misattributed.
+    collisions = {
+        name for name, count in
+        collections.Counter(p["web_name"] for p in players).items() if count > 1
+    }
     kept = [
         p for p in players
-        if p["minutes"] > 0 or p["owned"] >= ROSTER_MIN_OWNED or p["status"] != "a"
+        if p["minutes"] > 0
+        or p["owned"] >= ROSTER_MIN_OWNED
+        or p["status"] != "a"
+        or p["web_name"] in collisions
     ]
     roster_path = out_dir / "roster.txt"
     roster_path.write_text("\n".join(roster.roster_names(kept)) + "\n")

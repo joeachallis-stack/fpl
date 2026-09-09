@@ -54,9 +54,38 @@ CLAIM_RULES: list[tuple[str, str, str]] = [
 HEDGES = re.compile(
     r"\b(?:could|would|might|may|should|if|expect|predict|likely|unlikely|hope|think|"
     r"probably|maybe|rumou?r|apparently|going to|will|chance|risk|doubts?|doubtful|"
-    r"uncertain|unsure|concerns?|worried|worry|despite|questions?)\b",
+    r"uncertain|unsure|concerns?|worried|worry|despite|questions?|"
+    # A near miss is the opposite of the thing happening. "He nearly scored again" was
+    # read as a goal claim and contradicted against a record showing none — which is
+    # precisely what "nearly" meant.
+    r"nearly|almost|came close|close to|went close)\b",
     re.I,
 )
+
+# The per-player history holds league fixtures only, so a claim about any other
+# competition has nothing to check against and will always look contradicted. "Lewis
+# Hall played the full 90 in Newcastle's Carabao Cup tie" was flagged against an 89
+# minute league appearance that the claim was not talking about.
+OTHER_COMPETITION = re.compile(
+    r"\b(?:carabao|league cup|fa cup|champions league|europa|conference league|"
+    r"europe|european|midweek|international|friendly|cup tie|cup game)\b",
+    re.I,
+)
+
+# The record is one gameweek. A total spanning several is not a claim about that
+# gameweek: "two assists in three games" was contradicted because Calafiori did not
+# assist in this one.
+AGGREGATE = re.compile(
+    r"\b(?:in (?:his |their )?(?:last |first )?(?:two|three|four|five|six|\d+) (?:games|"
+    r"matches|gameweeks)|across .{0,20}(?:games|matches|gameweeks)|this season|so far|"
+    r"per game|per 90|on the season|all season)\b",
+    re.I,
+)
+
+# A player named as an example of a category is not the subject of the assertion.
+# "Raptor prefers captaining midfielders like Palmer, because a goal and a clean sheet"
+# is about midfielders, and was checked as though Palmer had kept a clean sheet.
+ILLUSTRATIVE = re.compile(r"\b(?:like|such as|for example|e\.g\.|players? like)\b", re.I)
 
 
 def load_history(element: int, gw: int) -> dict | None:
@@ -114,7 +143,9 @@ FPL_POINTS = re.compile(
 
 def check(text: str, element: int, gw: int) -> list[dict]:
     """Check one claim about one player in one gameweek. Empty list means nothing to say."""
-    if HEDGES.search(text) or NEGATIONS.search(text):
+    if (HEDGES.search(text) or NEGATIONS.search(text)
+            or OTHER_COMPETITION.search(text) or AGGREGATE.search(text)
+            or ILLUSTRATIVE.search(text)):
         return []
     record = load_history(element, gw)
     if record is None:
