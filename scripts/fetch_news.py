@@ -320,7 +320,7 @@ def pull_transcript(video_id: str) -> str | None:
     return str(txt_path.relative_to(ROOT))
 
 
-def main() -> None:
+def main(skip_transcripts: bool = False) -> None:
     existing = load_entries()
     seen = {(e["source"], e["link"]) for e in existing}
     fetched_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -345,6 +345,10 @@ def main() -> None:
         new_count += added
         print(f"  news: {source} — {len(items)} in feed, {added} new")
 
+    # Discovery first, and saved before any caption is pulled. Captions are the slow,
+    # rate-limited half of this job; when it was one interleaved loop, killing a run
+    # part-way through the transcript phase threw away every video it had discovered,
+    # because the index was only written at the very end. Twice.
     for source, channel_id in VIDEO_CHANNELS.items():
         try:
             items = list_channel_uploads(source, channel_id)
@@ -369,42 +373,59 @@ def main() -> None:
             # dropped for a transient failure is retried on the next run rather than
             # silently never fetched again.
             seen.add(key)
-            item["transcript_file"] = pull_transcript(item["video_id"])
+            item["transcript_file"] = None
             existing.append(item)
             added += 1
         new_count += added
         print(f"  news: {source} (video) — {len(items)} in feed, {added} new")
 
-    # Retry captions for videos already in the index that never got them. A transcript
-    # pull fails on its own schedule — rate limiting, an unstarted livestream — and
-    # `prepare_extraction.py` only queues entries whose transcript file exists, so a
-    # failure here removes the video from the work list with no "pending" signal
-    # anywhere. FPL Harry's GW4 Chelsea-Hull video sat unfetched exactly this way while
-    # the queue reported nothing to do.
-    #
-    # Bounded to recent uploads: an older missing transcript belongs to a settled
-    # gameweek and is worth nothing, and some videos never have captions at all.
-    cutoff = datetime.now(timezone.utc) - timedelta(days=TRANSCRIPT_RETRY_DAYS)
-    retried = 0
-    for item in existing:
-        if not item.get("video_id") or item.get("transcript_file"):
-            continue
-        published = item.get("published")
-        if not published or datetime.fromisoformat(published) < cutoff:
-            continue
-        path = pull_transcript(item["video_id"])
-        if path:
-            item["transcript_file"] = path
-            retried += 1
-            new_count += 1
-            print(f"  news: recovered transcript for {item['source']} {item['video_id']}")
-    if retried:
-        print(f"  news: recovered {retried} previously missing transcript(s)")
-
     if new_count:
         save_entries(existing)
+
+    if skip_transcripts:
+        pending = sum(1 for item in existing
+                      if item.get("video_id") and not item.get("transcript_file"))
+        print(f"  news: skipping transcripts ({pending} pending)")
+        return
+
+    # A newly discovered video and one whose caption pull failed last week are the same
+    # case — an indexed video with no transcript — so there is one loop for both.
+    # `prepare_extraction.py` only queues entries whose transcript file exists, so a
+    # video stuck here is invisible to the work list; FPL Harry's GW4 Chelsea-Hull video
+    # sat unfetched exactly that way while the queue reported nothing to do.
+    #
+    # Bounded to recent uploads: an older gap belongs to a settled gameweek and is worth
+    # nothing, and some videos never have captions at all.
+    cutoff = datetime.now(timezone.utc) - timedelta(days=TRANSCRIPT_RETRY_DAYS)
+    wanted = [
+        item for item in existing
+        if item.get("video_id")
+        and not item.get("transcript_file")
+        and item.get("published")
+        and datetime.fromisoformat(item["published"]) >= cutoff
+    ]
+    print(f"  news: {len(wanted)} video(s) need a transcript")
+    got = 0
+    for item in wanted:
+        path = pull_transcript(item["video_id"])
+        if not path:
+            continue
+        item["transcript_file"] = path
+        got += 1
+        print(f"  news: transcript for {item['source']} {item['video_id']}")
+        # Saved as they land. Captions arrive slowly and unreliably, and a run killed
+        # half way should keep what it already fetched.
+        save_entries(existing)
+    print(f"  news: {got} of {len(wanted)} transcripts fetched")
+
     print(f"wrote {NEWS_PATH.relative_to(ROOT)} ({len(existing)} total, {new_count} new this run)")
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--skip-transcripts", action="store_true",
+                        help="Index new uploads only; leave captions for a later run")
+    _args = parser.parse_args()
+    main(skip_transcripts=_args.skip_transcripts)
