@@ -713,7 +713,15 @@ def print_report(payload: dict, details: bool = False) -> None:
     print("Prices constrain legality; cash/team value earn no projected points.\n")
     print_plan("HOLD", payload["hold"], players, details)
     for transfer_count in range(1, 6):
-        for rank, plan in enumerate(payload["transfers"][str(transfer_count)], 1):
+        # A constrained search drops counts it cannot satisfy — two forced sales cannot
+        # happen in one move — so absent counts are normal, not an error. Say so rather
+        # than leaving a silent gap between 2 and 4.
+        plans = payload["transfers"].get(str(transfer_count))
+        if not plans:
+            if payload["meta"].get("forced_keep") or payload["meta"].get("forced_drop"):
+                print(f"{transfer_count} transfer      — impossible under the constraints\n")
+            continue
+        for rank, plan in enumerate(plans, 1):
             print_plan(f"{transfer_count} transfer #{rank}", plan, players, details)
     for chip, plan in payload["chips"].items():
         if plan.get("available") is False:
