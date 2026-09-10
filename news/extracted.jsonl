@@ -35,3 +35,6 @@
 {"video_id": "cdnEeg3Q3QU", "gw": 4, "findings": 34, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T02:01:41.587122+00:00"}
 {"video_id": "SZcChV19cYk", "gw": 4, "findings": 57, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T02:01:41.611587+00:00"}
 {"video_id": "vPpwEeMFpGc", "gw": 4, "findings": 52, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T02:01:41.635784+00:00"}
+{"video_id": "ffTebNcrgiM", "gw": 4, "findings": 35, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T02:12:03.728961+00:00"}
+{"video_id": "bdTcCCJr5Io", "gw": 4, "findings": 29, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T02:12:03.756877+00:00"}
+{"video_id": "5wzTAHRquwc", "gw": 4, "findings": 69, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T02:12:03.784204+00:00"}
