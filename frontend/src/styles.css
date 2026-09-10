@@ -357,3 +357,28 @@ code { font-family: "SFMono-Regular", Consolas, monospace; }
 
 @keyframes pulse { to { transform: rotate(45deg) scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Compare room. A scanning table: the fixture cell carries opponent and points together
+   so a run reads left-to-right without the eye leaving the row. */
+.compare-controls { display: flex; flex-wrap: wrap; gap: 26px; margin-bottom: 14px; padding: 13px 18px; border: 1px solid var(--line); background: white; }
+.compare-controls .control { display: flex; flex-direction: column; gap: 6px; min-width: 168px; }
+.compare-controls label { font: 600 10px "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #776f80; }
+.compare-controls input[type=range] { width: 100%; accent-color: var(--night); }
+.seg { display: flex; gap: 0; }
+.seg button { padding: 5px 11px; border: 1px solid var(--line); border-right: 0; background: white; cursor: pointer; font: 600 11px "Barlow Condensed", sans-serif; letter-spacing: .06em; text-transform: uppercase; color: #6f6879; }
+.seg button:last-child { border-right: 1px solid var(--line); }
+.seg button.on { background: var(--night); border-color: var(--night); color: white; }
+
+.compare-table td, .compare-table th { padding: 6px 8px; }
+.fixture-cell { position: relative; text-align: right; white-space: nowrap; }
+.fixture-opp { display: inline-block; margin-right: 7px; font: 600 9.5px "Barlow Condensed", sans-serif; letter-spacing: .06em; color: #6f6879; }
+.fixture-xp { font-variant-numeric: tabular-nums; font-weight: 700; }
+.fdr-easy { background: rgba(53, 168, 107, .17); }
+.fdr-mid  { background: rgba(255, 212, 92, .22); }
+.fdr-hard { background: rgba(239, 102, 87, .17); }
+.fdr-none { color: #b8b2bf; }
+.row-pinned > td:first-child { box-shadow: inset 4px 0 0 var(--turf); }
+.col-actions { white-space: nowrap; }
+.col-actions button { padding: 1px 6px; margin-left: 3px; border: 1px solid var(--line); background: white; border-radius: 2px; cursor: pointer; font-size: 11px; color: #8d8697; }
+.col-actions button.on { border-color: var(--turf); color: var(--turf); }
+.compare-table .owned-tag { margin-left: 6px; font: 700 9px "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--turf); }

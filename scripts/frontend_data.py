@@ -732,6 +732,86 @@ def _expert_room(
     }
 
 
+# Rows below this expected-minutes line are noise in a comparison table: a player the
+# model does not expect on the pitch cannot be compared on points. Owned players are kept
+# regardless, because Joe needs to see his own squad even when the model has written it off.
+COMPARE_MIN_MINUTES = 15.0
+
+
+def _compare_rows(
+    projections: dict,
+    elements: dict,
+    teams: dict,
+    fixtures: list[dict],
+    owned: set[int],
+    expert_rows: list[dict],
+    target_gw: int,
+) -> dict:
+    """Every projected player with their per-gameweek points, opponent and difficulty.
+
+    Built so the horizon is chosen in the browser rather than here. `decisions.py` has to
+    commit to one horizon because it optimizes a squad; comparing candidates does not, and
+    the answer genuinely changes with the window — Tavernier leads over six gameweeks and
+    is third over two. Shipping every gameweek lets that be a slider instead of a rerun.
+    """
+    difficulty = {}
+    for row in fixtures:
+        if row.get("event") is None:
+            continue
+        difficulty[(row["team_h"], row["event"])] = row.get("team_h_difficulty")
+        difficulty[(row["team_a"], row["event"])] = row.get("team_a_difficulty")
+
+    expert = {row["id"]: row for row in expert_rows}
+    price = prices_module.by_element()
+    rows = []
+    for raw_id, projection in projections.items():
+        player_id = int(raw_id)
+        element = elements.get(player_id)
+        if element is None:
+            continue
+        minutes = float(projection.get("exp_minutes") or 0)
+        if minutes < COMPARE_MIN_MINUTES and player_id not in owned:
+            continue
+        weeks = []
+        for week in projection.get("gameweeks") or []:
+            fixture = (week.get("fixtures") or [{}])[0]
+            weeks.append({
+                "gw": week["gw"],
+                "xP": round(float(week.get("xP") or 0), 2),
+                "blank": bool(week.get("blank")),
+                "opponent": fixture.get("opponent"),
+                "home": fixture.get("home"),
+                "difficulty": difficulty.get((element["team"], week["gw"])),
+                "source": fixture.get("source"),
+            })
+        row = expert.get(player_id)
+        rows.append({
+            "id": player_id,
+            "name": element.get("web_name"),
+            "team": teams.get(element["team"], {}).get("short_name"),
+            "position": projection.get("position") or "?",
+            "price": element.get("now_cost"),
+            "owned": player_id in owned,
+            "status": element.get("status", "a"),
+            "news": element.get("news") or None,
+            "expectedMinutes": round(minutes, 1),
+            "ownership": float(element.get("selected_by_percent") or 0),
+            "priceOutlook": price.get(player_id),
+            "creators": row["creators"] if row else 0,
+            "consensus": row["consensus"] if row else 0.0,
+            "midweek": len(row["midweek"]) if row else 0,
+            "gameweeks": weeks,
+        })
+    rows.sort(key=lambda r: -sum(w["xP"] for w in r["gameweeks"]))
+    return {
+        "targetGw": target_gw,
+        "gameweeks": sorted({w["gw"] for r in rows for w in r["gameweeks"]}),
+        "players": rows,
+        "minutesNote": "Expected minutes is the model's current role estimate, not a "
+                       "per-gameweek forecast.",
+    }
+
+
 def _archive_exists(folder: str, gw: int) -> bool:
     directory = ROOT / folder
     return any(
@@ -907,6 +987,14 @@ def build_analysis(root: Path = ROOT) -> dict:
         )
         owned_team_ids = {elements[player_id]["team"] for player_id in decisions["current"]["squad"]}
 
+        experts_payload = _expert_room(
+            target_gw,
+            elements,
+            teams,
+            projections,
+            set(decisions["current"]["squad"]),
+            decisions["current"].get("bank") or 0,
+        )
         return {
             "schemaVersion": VIEW_MODEL_VERSION,
             "analysisRunId": run_id,
@@ -951,14 +1039,15 @@ def build_analysis(root: Path = ROOT) -> dict:
             "playerPool": player_pool,
             "plans": plans,
             "fixtureWall": _fixture_wall(bootstrap, fixtures, projections, owned_team_ids),
-            "experts": _expert_room(
-                target_gw,
-                elements,
-                teams,
-                projections,
+            "compare": _compare_rows(
+                projections, elements, teams, fixtures,
                 set(decisions["current"]["squad"]),
-                decisions["current"].get("bank") or 0,
+                experts_payload["sections"].get("squad", [])
+                + experts_payload["sections"].get("targets", [])
+                + experts_payload["sections"].get("fades", []),
+                target_gw,
             ),
+            "experts": experts_payload,
             "modelForm": _model_form(evaluation, target_gw),
             "journal": {"entries": journal_entries, "recorded": bool(journal_entries)},
             "actions": {

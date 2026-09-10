@@ -1,10 +1,11 @@
 import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { deadlineLabel, expectedPoints, fixtureLabel, money, signed, sourceLabel } from './format'
-import type { Analysis, ExpertFinding, ExpertPlayerRow, PriceOutlook, Fixture, Plan, Player, PlayerPoolEntry, Room } from './types'
+import type { Analysis, ComparePlayer, ExpertFinding, ExpertPlayerRow, PriceOutlook, Fixture, Plan, Player, PlayerPoolEntry, Room } from './types'
 
 const rooms: Array<{ id: Room; label: string; number: string }> = [
   { id: 'gameweek', label: 'My gameweek', number: '01' },
   { id: 'experts', label: 'Expert room', number: '02' },
+  { id: 'compare', label: 'Compare', number: '05' },
   { id: 'fixtures', label: 'Fixture wall', number: '03' },
   { id: 'model', label: 'Model form', number: '04' },
 ]
@@ -150,6 +151,7 @@ function App() {
           />
         )}
         {room === 'experts' && <ExpertRoom analysis={analysis} selectedPlan={selectedPlan} onSelectPlayer={setSelectedPlayer} />}
+        {room === 'compare' && <CompareRoom analysis={analysis} />}
         {room === 'fixtures' && <FixtureWall analysis={analysis} selectedPlan={selectedPlan} />}
         {room === 'model' && <ModelForm analysis={analysis} />}
       </main>
@@ -827,6 +829,165 @@ function ExpertRoom({ analysis, selectedPlan, onSelectPlayer }: { analysis: Anal
           {!(quality?.unresolved ?? []).length && <li>Every name in this corpus resolved to the roster.</li>}
         </ul>
       </details>
+    </>
+  )
+}
+
+
+const POSITIONS = ['ALL', 'GKP', 'DEF', 'MID', 'FWD'] as const
+type PositionFilter = (typeof POSITIONS)[number]
+
+/** FPL's own 1-5 fixture difficulty, which is the scale Joe already reads elsewhere. */
+function difficultyClass(d: number | null): string {
+  if (d == null) return 'fdr-none'
+  if (d <= 2) return 'fdr-easy'
+  if (d === 3) return 'fdr-mid'
+  return 'fdr-hard'
+}
+
+/** Per-viewer conveniences only, so a wrapped failure is fine to swallow. */
+function loadSet(key: string): Set<number> {
+  try {
+    const raw = window.localStorage.getItem(key)
+    return new Set<number>(raw ? JSON.parse(raw) : [])
+  } catch { return new Set() }
+}
+function saveSet(key: string, value: Set<number>) {
+  try { window.localStorage.setItem(key, JSON.stringify([...value])) } catch { /* ignore */ }
+}
+
+function CompareRoom({ analysis }: { analysis: Analysis }) {
+  const { compare } = analysis
+  const all = compare.gameweeks
+  const [weeks, setWeeks] = useState(3)
+  const [position, setPosition] = useState<PositionFilter>('ALL')
+  const [maxPrice, setMaxPrice] = useState(160)
+  const [ownedOnly, setOwnedOnly] = useState(false)
+  const [hidden, setHidden] = useState<Set<number>>(() => loadSet('compare.hidden'))
+  const [pinned, setPinned] = useState<Set<number>>(() => loadSet('compare.pinned'))
+
+  const shown = all.slice(0, weeks)
+
+  const toggle = (set: Set<number>, setter: (s: Set<number>) => void, key: string, id: number) => {
+    const next = new Set(set)
+    next.has(id) ? next.delete(id) : next.add(id)
+    setter(next)
+    saveSet(key, next)
+  }
+
+  const scored = useMemo(() => {
+    const total = (p: ComparePlayer) =>
+      p.gameweeks.filter((w) => shown.includes(w.gw)).reduce((sum, w) => sum + w.xP, 0)
+    return compare.players
+      .map((p) => ({ player: p, total: total(p) }))
+      .filter(({ player }) => position === 'ALL' || player.position === position)
+      .filter(({ player }) => (player.price ?? 0) <= maxPrice)
+      .filter(({ player }) => !ownedOnly || player.owned)
+      .filter(({ player }) => !hidden.has(player.id) || pinned.has(player.id))
+      .sort((a, b) => {
+        const pa = pinned.has(a.player.id) ? 1 : 0
+        const pb = pinned.has(b.player.id) ? 1 : 0
+        return pb - pa || b.total - a.total
+      })
+  }, [compare.players, shown, position, maxPrice, ownedOnly, hidden, pinned])
+
+  return (
+    <>
+      <div className="room-heading expert-heading">
+        <div><span className="eyebrow">Player comparison</span><h1>Compare</h1></div>
+      </div>
+
+      <div className="compare-controls">
+        <div className="control">
+          <label>Position</label>
+          <div className="seg">
+            {POSITIONS.map((p) => (
+              <button key={p} className={p === position ? 'on' : ''} onClick={() => setPosition(p)}>{p}</button>
+            ))}
+          </div>
+        </div>
+        <div className="control">
+          <label>Gameweeks — GW{shown[0]}{weeks > 1 ? `–${shown[shown.length - 1]}` : ''}</label>
+          <input type="range" min={1} max={all.length} value={weeks}
+                 onChange={(e) => setWeeks(Number(e.target.value))} />
+        </div>
+        <div className="control">
+          <label>Max price {money(maxPrice)}</label>
+          <input type="range" min={38} max={160} step={1} value={maxPrice}
+                 onChange={(e) => setMaxPrice(Number(e.target.value))} />
+        </div>
+        <div className="control">
+          <label>&nbsp;</label>
+          <div className="seg">
+            <button className={ownedOnly ? 'on' : ''} onClick={() => setOwnedOnly(!ownedOnly)}>My squad only</button>
+            {(hidden.size > 0 || pinned.size > 0) && (
+              <button onClick={() => { setHidden(new Set()); setPinned(new Set()); saveSet('compare.hidden', new Set()); saveSet('compare.pinned', new Set()) }}>
+                Reset {hidden.size + pinned.size}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="expert-table-wrap">
+        <table className="expert-table compare-table">
+          <thead>
+            <tr>
+              <th className="col-player">Player</th>
+              <th>Pos</th>
+              <th className="num">£</th>
+              {shown.map((gw) => <th key={gw} className="num">GW{gw}</th>)}
+              <th className="num strong" title="Expected points summed over the selected gameweeks">Total</th>
+              <th className="num" title="Expected points per gameweek in the window">per GW</th>
+              <th className="num" title={compare.minutesNote}>Mins</th>
+              <th className="num" title="Creators discussing this player, and net consensus">Say</th>
+              <th>Price</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {scored.slice(0, 60).map(({ player, total }) => (
+              <tr key={player.id} className={pinned.has(player.id) ? 'row-pinned' : undefined}>
+                <td className="col-player">
+                  <strong>{player.name}</strong>
+                  <span className="row-team">{player.team}</span>
+                  {player.owned && <span className="owned-tag">owned</span>}
+                  {player.status !== 'a' && <span className="row-flag" title={player.news ?? 'flagged'}>!</span>}
+                  {player.midweek > 0 && <span className="row-midweek" title={`${player.midweek} midweek cup or European note(s)`}>MW</span>}
+                </td>
+                <td>{player.position}</td>
+                <td className="num">{money(player.price)}</td>
+                {shown.map((gw) => {
+                  const w = player.gameweeks.find((x) => x.gw === gw)
+                  if (!w) return <td key={gw} className="num fdr-none">—</td>
+                  return (
+                    <td key={gw} className={`num fixture-cell ${difficultyClass(w.difficulty)}`}
+                        title={`${w.opponent ?? 'blank'} ${w.home ? '(H)' : '(a)'} · FDR ${w.difficulty ?? '—'} · ${w.source ?? ''}`}>
+                      <span className="fixture-opp">{w.opponent ? w.opponent.slice(0, 3).toUpperCase() : '—'}{w.home ? '' : '*'}</span>
+                      <span className="fixture-xp">{w.xP.toFixed(1)}</span>
+                    </td>
+                  )
+                })}
+                <td className="num strong">{total.toFixed(1)}</td>
+                <td className="num">{(total / weeks).toFixed(1)}</td>
+                <td className="num">{player.expectedMinutes.toFixed(0)}</td>
+                <td className="num">{player.creators ? `${player.creators} ${player.consensus > 0 ? '+' : player.consensus < 0 ? '−' : '='}` : '—'}</td>
+                <td><PriceCell outlook={player.priceOutlook} /></td>
+                <td className="col-actions">
+                  <button title="Pin to the top" className={pinned.has(player.id) ? 'on' : ''}
+                          onClick={() => toggle(pinned, setPinned, 'compare.pinned', player.id)}>★</button>
+                  <button title="Hide this player" onClick={() => toggle(hidden, setHidden, 'compare.hidden', player.id)}>✕</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="midweek-note">
+        Sorted by expected points over the selected window, so the order changes with the slider.
+        An asterisk marks an away fixture; cells are coloured by FPL difficulty. {compare.minutesNote}
+        Hidden and pinned players are remembered in this browser only.
+      </p>
     </>
   )
 }

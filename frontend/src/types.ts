@@ -1,3 +1,31 @@
+export type CompareWeek = {
+  gw: number
+  xP: number
+  blank: boolean
+  opponent: string | null
+  home: boolean | null
+  difficulty: number | null
+  source: string | null
+}
+
+export type ComparePlayer = {
+  id: number
+  name: string
+  team: string | null
+  position: string
+  price: number | null
+  owned: boolean
+  status: string
+  news: string | null
+  expectedMinutes: number
+  ownership: number
+  priceOutlook: PriceOutlook | null
+  creators: number
+  consensus: number
+  midweek: number
+  gameweeks: CompareWeek[]
+}
+
 export type ExpertKind = 'news' | 'read' | 'stat' | 'recommendation' | 'action'
 export type ExpertHorizon = 'this_gw' | 'next_few' | 'season'
 
@@ -69,7 +97,7 @@ export type ExpertPlayerRow = {
   findings: ExpertFinding[]
 }
 
-export type Room = 'gameweek' | 'experts' | 'fixtures' | 'model'
+export type Room = 'gameweek' | 'experts' | 'fixtures' | 'model' | 'compare'
 
 export type Player = {
   id: number
@@ -195,6 +223,12 @@ export type Analysis = {
       owned: boolean
       gameweeks: Array<{ gw: number; fixtures: Fixture[] }>
     }>
+  }
+  compare: {
+    targetGw: number
+    gameweeks: number[]
+    players: ComparePlayer[]
+    minutesNote: string
   }
   experts: {
     targetGw: number
