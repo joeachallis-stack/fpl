@@ -190,6 +190,15 @@ code { font-family: "SFMono-Regular", Consolas, monospace; }
 .expert-table .row-flag { margin-left: 6px; display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--coral); color: white; font-size: 10px; font-weight: 700; }
 .expert-table .row-midweek, .midweek-note .row-midweek { margin-left: 6px; padding: 1px 4px; border-radius: 2px; background: var(--night); color: var(--yellow); font: 700 9px "Barlow Condensed", sans-serif; letter-spacing: .08em; cursor: help; vertical-align: 1px; }
 .midweek-note { display: flex; align-items: baseline; gap: 4px; margin: -6px 0 18px; padding: 9px 14px; border-left: 4px solid var(--night); background: #f3f0fa; font-size: 11.5px; line-height: 1.5; color: #4b4553; }
+.expert-table .col-price { white-space: nowrap; font-size: 11px; }
+.price-move { font-weight: 700; cursor: help; }
+.price-move.rise { color: #b0741a; }
+.price-move.fall { color: var(--coral); }
+.price-flat { color: #b8b2bf; font-variant-numeric: tabular-nums; }
+.price-strip { display: flex; gap: 26px; flex-wrap: wrap; margin: -6px 0 12px; padding: 9px 14px; border-left: 4px solid #b0741a; background: #fdf6ea; font-size: 11.5px; }
+.price-strip strong { margin-right: 10px; font: 600 10px "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #7a5b12; }
+.price-strip span { margin-right: 10px; color: #4b4553; }
+.price-strip em { font-style: normal; color: #8d8697; }
 .expert-table .col-claim { max-width: 460px; font-size: 11.5px; line-height: 1.45; color: #4b4553; }
 .expert-table .col-stance { width: 116px; }
 .expert-table.compact td { padding: 6px 8px; }

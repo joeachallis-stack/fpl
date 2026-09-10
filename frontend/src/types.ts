@@ -19,6 +19,26 @@ export type ExpertFinding = {
   playerIds?: number[]
 }
 
+export type PriceOutlook = {
+  element: number
+  name: string
+  now_cost: number
+  percent: number
+  hourly_rate: number
+  direction: 'rise' | 'fall' | 'flat'
+  when: number | null
+  likelihood: number
+  confident: boolean
+  locked_until: string | null
+  calibrating: boolean
+  projections: Array<{ offset: number; percent: number; likelihood: number }>
+}
+
+export type PriceAlert = {
+  id: number; name: string; price: number | null
+  when: number; direction: 'rise' | 'fall'; percent: number
+}
+
 export type ExpertPlayerRow = {
   id: number
   name: string
@@ -43,6 +63,7 @@ export type ExpertPlayerRow = {
   gameweekXP: number | null
   horizonXP: number | null
   expectedMinutes: number | null
+  priceOutlook: PriceOutlook | null
   midweek: ExpertFinding[]
   topClaim: ExpertFinding | null
   findings: ExpertFinding[]
@@ -203,6 +224,7 @@ export type Analysis = {
       chips?: Array<{ chip: string; findings: ExpertFinding[]; mentions: number; creators: string[] }>
       context?: Array<{ team: string; findings: ExpertFinding[]; mentions: number }>
       creatorActions?: ExpertFinding[]
+      priceAlerts?: { owned_falling: PriceAlert[]; target_rising: PriceAlert[] }
     }
     quality?: {
       unresolved: Array<{ name: string; count: number }>

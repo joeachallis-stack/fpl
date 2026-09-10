@@ -1,6 +1,6 @@
 import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { deadlineLabel, expectedPoints, fixtureLabel, money, signed, sourceLabel } from './format'
-import type { Analysis, ExpertFinding, ExpertPlayerRow, Fixture, Plan, Player, PlayerPoolEntry, Room } from './types'
+import type { Analysis, ExpertFinding, ExpertPlayerRow, PriceOutlook, Fixture, Plan, Player, PlayerPoolEntry, Room } from './types'
 
 const rooms: Array<{ id: Room; label: string; number: string }> = [
   { id: 'gameweek', label: 'My gameweek', number: '01' },
@@ -518,6 +518,25 @@ function StanceBar({ value, raw, support }: { value: number; raw: number; suppor
   )
 }
 
+const WHEN_LABEL: Record<number, string> = { 0: 'tonight', 1: '1 day', 2: '2 days' }
+
+function PriceCell({ outlook }: { outlook: PriceOutlook | null }) {
+  if (!outlook || outlook.calibrating) return <span className="price-flat">—</span>
+  if (outlook.when === null) {
+    return <span className="price-flat" title={`${outlook.percent.toFixed(1)}% toward a change`}>{outlook.percent.toFixed(0)}%</span>
+  }
+  const rising = outlook.direction === 'rise'
+  const detail = outlook.projections.map((p) => `+${p.offset}d ${p.percent.toFixed(1)}%`).join('  ')
+  return (
+    <span
+      className={rising ? 'price-move rise' : 'price-move fall'}
+      title={`FPL projects a ${outlook.direction} — now ${outlook.percent.toFixed(1)}% of the threshold.\n${detail}\nlikelihood ${outlook.likelihood} of 5`}
+    >
+      {rising ? '\u25b2' : '\u25bc'} {WHEN_LABEL[outlook.when] ?? `${outlook.when}d`}{outlook.confident ? '' : '?'}
+    </span>
+  )
+}
+
 function KindTag({ finding }: { finding: ExpertFinding }) {
   const kind = finding.kind ?? 'read'
   const uncertain = finding.inferred?.includes('kind')
@@ -559,6 +578,7 @@ function ExpertTable({
             <th>Pos</th>
             <th className="num">£</th>
             {columns === 'market' && <th className="num" title="Affordable from the bank plus your most expensive player in this position, at current price">Fits</th>}
+            <th title="FPL's own price-change projection. Earns no points; it only changes what the same move costs to execute.">Price</th>
             <th className="num" title="Model expected points this gameweek">xP</th>
             <th className="num" title="Model expected points over six gameweeks">6GW</th>
             <th className="num" title="Creators mentioning this player">Say</th>
@@ -594,6 +614,7 @@ function ExpertTable({
               {columns === 'market' && (
                 <td className="num">{row.affordable ? <span className="fits-yes">yes</span> : <span className="fits-no">no</span>}</td>
               )}
+              <td className="col-price"><PriceCell outlook={row.priceOutlook} /></td>
               <td className="num">{num(row.gameweekXP)}</td>
               <td className="num strong">{num(row.horizonXP)}</td>
               <td className="num">{row.mentions ? `${row.creators}/${row.mentions}` : '—'}</td>
@@ -688,6 +709,29 @@ function ExpertRoom({ analysis, selectedPlan, onSelectPlayer }: { analysis: Anal
           {!(sections.actNow ?? []).length && <li className="section-empty">Nothing this week that the model cannot already see.</li>}
         </ul>
       </ExpertSection>
+
+      {(() => {
+        const alerts = sections.priceAlerts
+        const falling = alerts?.owned_falling ?? []
+        const rising = alerts?.target_rising ?? []
+        if (!falling.length && !rising.length) return null
+        return (
+          <div className="price-strip">
+            {falling.length > 0 && (
+              <div>
+                <strong>Losing value in your squad</strong>
+                {falling.map((a) => <span key={a.id}>{a.name} <em>{WHEN_LABEL[a.when] ?? `${a.when}d`}</em></span>)}
+              </div>
+            )}
+            {rising.length > 0 && (
+              <div>
+                <strong>Getting more expensive</strong>
+                {rising.map((a) => <span key={a.id}>{a.name} <em>{WHEN_LABEL[a.when] ?? `${a.when}d`}</em></span>)}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       <p className="midweek-note">
         <span className="row-midweek">MW</span> marks a player with midweek cup or European

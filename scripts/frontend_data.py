@@ -18,6 +18,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import findings as findings_schema  # noqa: E402  (needs the path line above)
+import prices as prices_module  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -448,6 +449,11 @@ def _expert_player_rows(
     # all, so a player who went 90 minutes in a Carabao tie looks identical to one who
     # rested. That is a real risk to his next league start and the model has no way to
     # know it — so it is surfaced beside the projection rather than folded into it.
+    # FPL's own price-change projections. These earn no points and must never reach the
+    # optimizer — decisions.py is right to treat price as a feasibility constraint only.
+    # They change what the same plan costs to execute, which is worth seeing before
+    # pressing the button rather than after.
+    price = prices_module.by_element()
     midweek: dict[int, list[dict]] = defaultdict(list)
     for finding in findings_schema.midweek_findings(findings):
         for entry in finding.get("players", []):
@@ -499,6 +505,7 @@ def _expert_player_rows(
             "gameweekXP": week.get("xP", projection.get("xP")),
             "horizonXP": projection.get("horizon_xP"),
             "expectedMinutes": projection.get("exp_minutes"),
+            "priceOutlook": price.get(player_id),
             "midweek": [_finding_view(f) for f in midweek.get(player_id, [])],
             "topClaim": _finding_view(sharpest),
             "findings": [_finding_view(f) for f in sorted(
@@ -533,6 +540,7 @@ def _expert_room(
     # An owned player nobody mentioned still belongs in the squad table. Silence about a
     # starter is a fact about the week, and dropping the row hides it.
     signal = _model_signal(projections, elements)
+    price = prices_module.by_element()
     for player_id in owned - set(by_id):
         element = elements.get(player_id)
         if element is None:
@@ -557,6 +565,7 @@ def _expert_room(
             "gameweekXP": week.get("xP", projection.get("xP")),
             "horizonXP": projection.get("horizon_xP"),
             "expectedMinutes": projection.get("exp_minutes"),
+            "priceOutlook": price.get(player_id),
             "midweek": [],
             "topClaim": None,
             "findings": [],
@@ -664,6 +673,24 @@ def _expert_room(
         key=lambda row: -row["mentions"],
     )
 
+    # Two asymmetric risks worth stating separately: a player you own losing value, and
+    # a player you want gaining it. Only confident, dated projections qualify — an
+    # undated drift is not something to act on.
+    alerts = {"owned_falling": [], "target_rising": []}
+    for row in rows:
+        outlook = row.get("priceOutlook")
+        if not outlook or outlook["when"] is None or not outlook["confident"]:
+            continue
+        entry = {"id": row["id"], "name": row["name"], "price": row["price"],
+                 "when": outlook["when"], "direction": outlook["direction"],
+                 "percent": outlook["percent"]}
+        if row["owned"] and outlook["direction"] == "fall":
+            alerts["owned_falling"].append(entry)
+        elif not row["owned"] and outlook["direction"] == "rise" and row["consensus"] > 0:
+            alerts["target_rising"].append(entry)
+    for key in alerts:
+        alerts[key].sort(key=lambda e: (e["when"], -abs(e["percent"])))
+
     actions = [_finding_view(f) for f in findings if f.get("kind") == "action"]
     unresolved = Counter(name for f in findings for name in f.get("unresolved", []))
     inferred = Counter(field for f in findings for field in f.get("inferred", []))
@@ -693,6 +720,7 @@ def _expert_room(
             "chips": chips,
             "context": context_rows,
             "creatorActions": actions,
+            "priceAlerts": alerts,
         },
         "quality": {
             "unresolved": [{"name": name, "count": n}
