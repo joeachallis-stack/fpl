@@ -95,6 +95,13 @@ def by_element(bootstrap: dict | None = None) -> dict[int, dict]:
     return {row["id"]: outlook(row) for row in bootstrap["elements"]}
 
 
+# Offsets are counted in nightly price updates, not in wall-clock days, and are
+# deliberately not translated into "tonight". Read at 4am, "tonight" means the change
+# that already happened hours ago; read at 8pm it means one nearly due. FPL publishes
+# offsets, so offsets are what gets shown.
+WHEN_LABEL = {0: "next change", 1: "2nd change", 2: "3rd change"}
+
+
 def label(row: dict) -> str:
     """One short phrase for a table cell."""
     if row["calibrating"]:
@@ -102,7 +109,7 @@ def label(row: dict) -> str:
     if row["when"] is None:
         return "—"
     arrow = "up" if row["direction"] == "rise" else "down"
-    horizon = {0: "tonight", 1: "1 day", 2: "2 days"}.get(row["when"], f"{row['when']}d")
+    horizon = WHEN_LABEL.get(row["when"], f"+{row['when']}")
     return f"{arrow} {horizon}" + ("" if row["confident"] else "?")
 
 
@@ -164,7 +171,8 @@ def main() -> None:
     table(f"SHARPEST MOVERS ELSEWHERE (top {args.top})",
           [r["element"] for r in movers[:args.top]])
 
-    print("\nFPL's own projections. Changes are applied nightly; offsets are days ahead.")
+    print("\nFPL's own projections. Prices update once nightly, so an offset counts")
+    print("updates, not days: 'next change' is the coming one, whenever that falls.")
     print("A '?' means FPL's likelihood is below 4 of 5 — direction without conviction.")
 
 

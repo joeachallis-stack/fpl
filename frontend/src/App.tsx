@@ -518,7 +518,9 @@ function StanceBar({ value, raw, support }: { value: number; raw: number; suppor
   )
 }
 
-const WHEN_LABEL: Record<number, string> = { 0: 'tonight', 1: '1 day', 2: '2 days' }
+// Offsets count nightly price updates, not days. Naming offset 0 'tonight' reads
+// wrong at 4am, when tonight's update has already run.
+const WHEN_LABEL: Record<number, string> = { 0: 'next change', 1: '2nd change', 2: '3rd change' }
 
 function PriceCell({ outlook }: { outlook: PriceOutlook | null }) {
   if (!outlook || outlook.calibrating) return <span className="price-flat">—</span>
@@ -532,7 +534,7 @@ function PriceCell({ outlook }: { outlook: PriceOutlook | null }) {
       className={rising ? 'price-move rise' : 'price-move fall'}
       title={`FPL projects a ${outlook.direction} — now ${outlook.percent.toFixed(1)}% of the threshold.\n${detail}\nlikelihood ${outlook.likelihood} of 5`}
     >
-      {rising ? '\u25b2' : '\u25bc'} {WHEN_LABEL[outlook.when] ?? `${outlook.when}d`}{outlook.confident ? '' : '?'}
+      {rising ? '\u25b2' : '\u25bc'} {WHEN_LABEL[outlook.when] ?? `+${outlook.when}`}{outlook.confident ? '' : '?'}
     </span>
   )
 }
@@ -720,13 +722,13 @@ function ExpertRoom({ analysis, selectedPlan, onSelectPlayer }: { analysis: Anal
             {falling.length > 0 && (
               <div>
                 <strong>Losing value in your squad</strong>
-                {falling.map((a) => <span key={a.id}>{a.name} <em>{WHEN_LABEL[a.when] ?? `${a.when}d`}</em></span>)}
+                {falling.map((a) => <span key={a.id}>{a.name} <em>{WHEN_LABEL[a.when] ?? `+${a.when}`}</em></span>)}
               </div>
             )}
             {rising.length > 0 && (
               <div>
                 <strong>Getting more expensive</strong>
-                {rising.map((a) => <span key={a.id}>{a.name} <em>{WHEN_LABEL[a.when] ?? `${a.when}d`}</em></span>)}
+                {rising.map((a) => <span key={a.id}>{a.name} <em>{WHEN_LABEL[a.when] ?? `+${a.when}`}</em></span>)}
               </div>
             )}
           </div>
