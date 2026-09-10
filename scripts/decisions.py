@@ -312,7 +312,14 @@ class SquadMILP:
     def __init__(
         self, players: dict[int, dict], current: set[int], costs: dict[int, int],
         budget: int, bootstrap: dict, horizon: int, discount: float,
+        keep: set[int] | None = None, drop: set[int] | None = None,
     ) -> None:
+        # A plan Joe will not execute is worth nothing, so his hard constraints belong
+        # inside the search rather than as a note beside it. "I am not selling Rogers"
+        # and "Palestra has to go" are exactly that: the optimizer should find the best
+        # squad that respects them, not the best squad in the abstract.
+        self.keep = keep or set()
+        self.drop = drop or set()
         self.players = players
         self.ids = sorted(players)
         self.at = {element: index for index, element in enumerate(self.ids)}
@@ -343,6 +350,12 @@ class SquadMILP:
         settings = self.bootstrap["game_settings"]
         types = {row["id"]: row for row in self.bootstrap["element_types"]}
         elements = {row["id"]: row for row in self.bootstrap["elements"]}
+        for element in self.keep:
+            if element in self.ids:
+                self.add({self.x(element): 1}, 1, 1)
+        for element in self.drop:
+            if element in self.ids:
+                self.add({self.x(element): 1}, 0, 0)
         self.add({self.x(element): 1 for element in self.ids}, 15, 15)
         self.add({self.x(element): self.costs[element] for element in self.ids}, high=self.budget)
         for type_id, rules in types.items():
@@ -500,7 +513,8 @@ def validate_plan(plan: dict, bootstrap: dict, players: dict[int, dict]) -> None
                 raise RuntimeError(f"GW{lineup['gw']} illegal {position} starter count: {count}")
 
 
-def build(horizon: int = 6, include_chips: bool = True) -> dict:
+def build(horizon: int = 6, include_chips: bool = True,
+          keep: set[int] | None = None, drop: set[int] | None = None) -> dict:
     bootstrap = load(DATA_DIR / "bootstrap.json")
     projection_payload = load(DATA_DIR / "projections.json")
     if projection_payload["meta"]["horizon"] < horizon:
@@ -529,8 +543,14 @@ def build(horizon: int = 6, include_chips: bool = True) -> dict:
         row["singular_name_short"]: (row["squad_min_play"], row["squad_max_play"])
         for row in bootstrap["element_types"] if row["singular_name_short"] != "GKP"
     }
-    optimizer = SquadMILP(players, current, costs, total_budget, bootstrap, horizon, discount)
-    hold_squad = optimizer.solve(0)
+    optimizer = SquadMILP(players, current, costs, total_budget, bootstrap, horizon,
+                          discount, keep, drop)
+    # Hold is the squad Joe already owns, so it is scored unconstrained. Forcing a player
+    # out and then asking for the best zero-transfer squad is a contradiction, and the
+    # solver was right to call it infeasible — the baseline just is not the place for a
+    # constraint about what to change.
+    baseline = SquadMILP(players, current, costs, total_budget, bootstrap, horizon, discount)
+    hold_squad = baseline.solve(0)
     hold_xp, hold_adjusted_xp, _ = score_squad(hold_squad, players, horizon, discount, play_rules)
     cap = 1 + settings["max_extra_free_transfers"]
     common = (
@@ -543,17 +563,25 @@ def build(horizon: int = 6, include_chips: bool = True) -> dict:
         cuts: list[set[int]] = []
         plans = []
         for _ in range(count):
-            squad = optimizer.solve(transfer_count, cuts)
+            # A constrained search makes low transfer counts genuinely impossible —
+            # two forced drops cannot happen in one move. Skip those rather than fail
+            # the whole run, so the feasible plans still get compared.
+            try:
+                squad = optimizer.solve(transfer_count, cuts)
+            except RuntimeError:
+                break
             cuts.append(set(squad))
             plans.append(decorate_plan(squad, *common, chip=None))
         plans.sort(key=lambda row: row["gain_after_hits"], reverse=True)
-        transfer_plans[str(transfer_count)] = plans
+        if plans:
+            transfer_plans[str(transfer_count)] = plans
 
     target_gw = projection_payload["meta"]["gw"]
     history = load(DATA_DIR / "history.json")
     chips = {}
     if include_chips and chip_available("freehit", target_gw, bootstrap, history):
-        freehit_optimizer = SquadMILP(players, current, costs, total_budget, bootstrap, 1, discount)
+        freehit_optimizer = SquadMILP(players, current, costs, total_budget, bootstrap, 1,
+                                      discount, keep, drop)
         squad = freehit_optimizer.solve(None)
         chips["freehit"] = decorate_plan(
             squad, current, players, elements, sell_prices, context["bank"], context["free_transfers"],
@@ -565,8 +593,11 @@ def build(horizon: int = 6, include_chips: bool = True) -> dict:
     else:
         chips["freehit"] = {"available": False}
     if include_chips and chip_available("wildcard", target_gw, bootstrap, history):
-        squad = optimizer.solve(None)
-        chips["wildcard"] = decorate_plan(squad, *common, chip="wildcard")
+        try:
+            squad = optimizer.solve(None)
+            chips["wildcard"] = decorate_plan(squad, *common, chip="wildcard")
+        except RuntimeError:
+            chips["wildcard"] = {"available": False, "infeasible_under_constraints": True}
     else:
         chips["wildcard"] = {"available": False}
 
@@ -579,6 +610,11 @@ def build(horizon: int = 6, include_chips: bool = True) -> dict:
             "horizon_discount": discount,
             "objective": "discounted expected FPL points; prices constrain feasibility only",
             "future_transfers": "none; resulting squad held through horizon",
+            # Recorded so a constrained search can never be mistaken for the open one.
+            # data/decisions.json is what the frontend reads, and a plan that was forced
+            # to keep or drop a player is a different question with a different answer.
+            "forced_keep": sorted(keep or ()),
+            "forced_drop": sorted(drop or ()),
             "candidate_players": len(players),
             "excluded_players": len(bootstrap["elements"]) - len(players),
             "optimizer": "SciPy MILP/HiGHS; exact planned-XI/captain objective with a 1e-7 squad-depth tiebreak",
@@ -698,17 +734,54 @@ def archive(payload: dict) -> None:
     print(f"froze decision search to {display_path}")
 
 
+def resolve_names(values: list[str] | None) -> set[int]:
+    """Turn `--keep Rogers --drop Palestra` into element ids.
+
+    Declines an ambiguous display name rather than picking one, for the same reason
+    `roster.py` does: there are two Palmers, and quietly locking the wrong one into the
+    squad would be a silent, expensive error.
+    """
+    if not values:
+        return set()
+    bootstrap = load(DATA_DIR / "bootstrap.json")
+    teams = {row["id"]: row["short_name"] for row in bootstrap["teams"]}
+    out: set[int] = set()
+    for value in values:
+        if value.isdigit():
+            out.add(int(value))
+            continue
+        hits = [row for row in bootstrap["elements"]
+                if row["web_name"].casefold() == value.casefold()]
+        if not hits:
+            raise SystemExit(f"no player called {value!r}")
+        if len(hits) > 1:
+            options = ", ".join(f"{row['web_name']} ({teams[row['team']]}) id={row['id']}"
+                                for row in hits)
+            raise SystemExit(f"{value!r} is ambiguous — pass an id: {options}")
+        out.add(hits[0]["id"])
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--horizon", type=int, default=6)
     parser.add_argument("--no-chips", action="store_true")
     parser.add_argument("--details", action="store_true", help="show every projected XI and bench")
+    parser.add_argument("--keep", action="append", metavar="NAME_OR_ID",
+                        help="force this player to stay in the squad; repeatable")
+    parser.add_argument("--drop", action="append", metavar="NAME_OR_ID",
+                        help="force this player out of the squad; repeatable")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("archive", help="freeze this pre-deadline decision search")
     args = parser.parse_args()
     if not 1 <= args.horizon <= 10:
         raise SystemExit("--horizon must be between 1 and 10")
-    payload = build(args.horizon, include_chips=not args.no_chips)
+    keep, drop = resolve_names(args.keep), resolve_names(args.drop)
+    if keep & drop:
+        raise SystemExit(f"cannot both keep and drop: {sorted(keep & drop)}")
+    if keep or drop:
+        print(f"constrained search — keep {sorted(keep)} drop {sorted(drop)}\n")
+    payload = build(args.horizon, include_chips=not args.no_chips, keep=keep, drop=drop)
     print_report(payload, details=args.details)
     if args.command == "archive":
         archive(payload)
