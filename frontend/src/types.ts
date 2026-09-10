@@ -43,6 +43,7 @@ export type ExpertPlayerRow = {
   gameweekXP: number | null
   horizonXP: number | null
   expectedMinutes: number | null
+  midweek: ExpertFinding[]
   topClaim: ExpertFinding | null
   findings: ExpertFinding[]
 }

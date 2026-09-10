@@ -581,6 +581,13 @@ function ExpertTable({
                 <strong>{row.name}</strong>
                 <span className="row-team">{row.team}</span>
                 {row.status !== 'a' && <span className="row-flag" title={row.news ?? 'flagged'}>!</span>}
+                {row.midweek.length > 0 && (
+                  <span
+                    className="row-midweek"
+                    title={`Midweek football the model cannot see (${row.midweek.length}):\n\n`
+                      + row.midweek.map((f) => `• ${f.creator}: ${f.claim}`).join('\n\n')}
+                  >MW</span>
+                )}
               </td>
               <td>{row.position}</td>
               <td className="num">{money(row.price)}</td>
@@ -681,6 +688,13 @@ function ExpertRoom({ analysis, selectedPlan, onSelectPlayer }: { analysis: Anal
           {!(sections.actNow ?? []).length && <li className="section-empty">Nothing this week that the model cannot already see.</li>}
         </ul>
       </ExpertSection>
+
+      <p className="midweek-note">
+        <span className="row-midweek">MW</span> marks a player with midweek cup or European
+        football reported in the corpus. The FPL API records league rounds only, so a cup 90
+        is invisible to the projection — this is shown beside the numbers, never inside them.
+        Hover for what was said.
+      </p>
 
       <ExpertSection
         n="02"

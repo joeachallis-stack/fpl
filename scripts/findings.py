@@ -14,6 +14,7 @@ globs naively counts every finding twice.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,6 +37,34 @@ VOCABULARY = {
     "stance": STANCES,
     "conviction": CONVICTIONS,
 }
+
+
+# Midweek football a player has already played, or is about to. The FPL API cannot see
+# any of it: `element_summary` holds league rounds only, so a cup 90 is invisible to both
+# the minutes model and the claim checker.
+#
+# This is deliberately NOT a model input. Cup goals score no FPL points, and a fatigue
+# adjustment belongs in `minutes.py` only once `train_minutes.py` has fitted and
+# walk-forward validated one. Until then it is shown to Joe as evidence beside the
+# numbers, in the same spirit as the rest of the expert room: the model says what it can
+# measure, and what it structurally cannot see sits next to it rather than inside it.
+MIDWEEK = re.compile(
+    r"\b(carabao|league cup|fa cup|champions league|europa|conference league|"
+    r"european|midweek|cup tie|cup game)\b",
+    re.I,
+)
+
+
+def midweek_findings(rows: list[dict]) -> list[dict]:
+    """Cup and European claims that bear on whether a player will be fresh and playing."""
+    out = []
+    for row in rows:
+        if row.get("topic") not in {"minutes", "injury", "role"}:
+            continue
+        text = f"{row.get('claim', '')} {row.get('quote', '')}"
+        if MIDWEEK.search(text):
+            out.append(row)
+    return out
 
 
 def load_creators() -> dict[str, dict]:

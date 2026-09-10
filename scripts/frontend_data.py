@@ -444,6 +444,16 @@ def _expert_player_rows(
             player_id = _resolve_finding_player(entry, index, elements)
             if player_id is not None:
                 grouped[player_id].append(finding)
+    # Midweek football is shown, never scored. The FPL API cannot see a cup appearance at
+    # all, so a player who went 90 minutes in a Carabao tie looks identical to one who
+    # rested. That is a real risk to his next league start and the model has no way to
+    # know it — so it is surfaced beside the projection rather than folded into it.
+    midweek: dict[int, list[dict]] = defaultdict(list)
+    for finding in findings_schema.midweek_findings(findings):
+        for entry in finding.get("players", []):
+            player_id = _resolve_finding_player(entry, index, elements)
+            if player_id is not None:
+                midweek[player_id].append(finding)
 
     rows = []
     for player_id, group in grouped.items():
@@ -489,6 +499,7 @@ def _expert_player_rows(
             "gameweekXP": week.get("xP", projection.get("xP")),
             "horizonXP": projection.get("horizon_xP"),
             "expectedMinutes": projection.get("exp_minutes"),
+            "midweek": [_finding_view(f) for f in midweek.get(player_id, [])],
             "topClaim": _finding_view(sharpest),
             "findings": [_finding_view(f) for f in sorted(
                 group, key=lambda f: (-KIND_VALUE.get(f.get("kind"), 0),
@@ -546,6 +557,7 @@ def _expert_room(
             "gameweekXP": week.get("xP", projection.get("xP")),
             "horizonXP": projection.get("horizon_xP"),
             "expectedMinutes": projection.get("exp_minutes"),
+            "midweek": [],
             "topClaim": None,
             "findings": [],
         }
