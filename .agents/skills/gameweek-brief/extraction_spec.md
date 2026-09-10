@@ -163,6 +163,19 @@ claim with an anonymous speaker cannot enter that comparison at all.
 Plural is different: "Creators see higher upside in City assets" is the speaker reporting
 what the community thinks, not referring to himself. Leave that as it is.
 
+**Some channels are panels.** Fantasy Football Hub publishes several named analysts under
+one brand, and Planet FPL is a panel show; a batch line saying `PANEL, name the individual
+analyst` means the voice is not the channel. Name the person — "Lateriser is free-hitting",
+not "Fantasy Football Hub is free-hitting" — and put the individual in the claim even
+though `source` stays the channel slug. Four analysts recorded as one creator would count
+as a single voice in the consensus, which is exactly backwards: independent people
+agreeing is the signal the whole brief is built to find.
+
+The same applies to a co-host. An FPL Harry Short turned out to be a dialogue with a
+co-host named Ross speaking the first half, and attributing all of it to Harry would have
+been wrong. When a second person is named in the transcript, attribute what they say to
+them.
+
 Be comprehensive on `minutes`, `injury` and `captaincy`, and on anything you label `news`
 or `read` — those are the findings the model cannot produce for itself. Long videos are
 conversational and repetitive: extract the substance once, not every time a point is

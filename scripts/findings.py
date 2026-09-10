@@ -74,6 +74,21 @@ def load_creators() -> dict[str, dict]:
         return {k: v for k, v in json.load(f).items() if not k.startswith("_")}
 
 
+def muted_sources() -> set[str]:
+    """Creators Joe has chosen not to read.
+
+    Muting rather than deleting: `news/entries.jsonl` is append-only because a feed item
+    is unrecoverable once it scrolls off the source, and an editorial judgement is not a
+    reason to lose the record that a video existed. Un-muting later costs nothing.
+    """
+    return {slug for slug, row in load_creators().items() if row.get("muted")}
+
+
+def is_panel(source: str) -> bool:
+    """Whether this channel publishes several named analysts under one brand."""
+    return bool(load_creators().get(source, {}).get("panel"))
+
+
 def creator_name(source: str, short: bool = True) -> str:
     """The human name for a feed slug, for use inside a claim sentence.
 

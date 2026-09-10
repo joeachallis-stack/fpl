@@ -80,9 +80,13 @@ def main() -> None:
                 entries.append(row)
 
     done = already_extracted()
-    skipped = {"not_current": 0, "already_done": 0}
+    muted = findings_schema.muted_sources()
+    skipped = {"not_current": 0, "already_done": 0, "muted": 0}
     todo = []
     for row in entries:
+        if row.get("source") in muted:
+            skipped["muted"] += 1
+            continue
         verdict = claims.relevance(row["title"], row["published"], events)
         if verdict["verdict"] != "current" or verdict["gw"] != args.gw:
             skipped["not_current"] += 1
@@ -95,6 +99,8 @@ def main() -> None:
     print(f"corpus: {len(entries)} transcripts")
     print(f"  skipped, not GW{args.gw}: {skipped['not_current']}")
     print(f"  skipped, already extracted: {skipped['already_done']}")
+    if skipped["muted"]:
+        print(f"  skipped, muted source: {skipped['muted']}")
     print(f"  to extract: {len(todo)}")
     if not todo:
         print("\nnothing to do.")
@@ -150,6 +156,8 @@ def main() -> None:
             # every claim. Given only a feed slug, agents wrote "the creator", and an
             # anonymous claim cannot be read back as agreement or dissent.
             speaker = findings_schema.creator_name(row["source"])
+            if findings_schema.is_panel(row["source"]):
+                speaker = f"{speaker} — PANEL, name the individual analyst"
             print(f"     {row['transcript_file']} | {row['video_id']} | {row['source']} "
                   f"| speaker: {speaker} | {row['published'][:10]} | {row['title'][:40]}")
 

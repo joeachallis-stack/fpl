@@ -39,5 +39,39 @@
   "letstalkfpl": {
     "display": "Let's Talk FPL",
     "short": "Let's Talk FPL"
-  }
+  },
+  "fplfocal": {
+    "display": "FPL Focal",
+    "short": "Focal"
+  },
+  "fplmate": {
+    "display": "FPL Mate",
+    "short": "FPL Mate",
+    "muted": true,
+    "muted_reason": "Joe's call, 2026-09-10: not a creator he rates."
+  },
+  "planetfpl": {
+    "display": "Planet FPL",
+    "short": "Planet FPL",
+    "panel": true
+  },
+  "fantasyfootballhub": {
+    "display": "Fantasy Football Hub",
+    "short": "The Hub",
+    "panel": true
+  },
+  "fplfamily": {
+    "display": "FPL Family",
+    "short": "FPL Family"
+  },
+  "aboveaveragefpl": {
+    "display": "Above Average FPL",
+    "short": "Above Average"
+  },
+  "fplsurgery": {
+    "display": "FPL Surgery",
+    "short": "FPL Surgery"
+  },
+  "_muted_comment": "A muted source is still fetched into the index if already present, but is not pulled again and never reaches the extraction queue. Recording the decision beats deleting the rows: entries.jsonl is append-only because feed items are unrecoverable once they scroll off.",
+  "_panel_comment": "A panel channel publishes several named analysts under one brand. The extractor must name the person speaking, not the channel, or four independent opinions collapse into one 'creator' and the support-weighted consensus counts them as a single voice."
 }

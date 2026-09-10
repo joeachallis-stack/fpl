@@ -99,6 +99,17 @@ VIDEO_CHANNELS = {
     "fplraptor": "UC54QLWzsMifTRjNQ02z5pCw",
     "fpltips": "UCVPb_jLxwaoYd-Dm7aSWQKQ",
     "letstalkfpl": "UCxeOc7eFxq37yW_Nc-69deA",
+    # Added 2026-09-10, each id resolved from the channel's own @handle rather than
+    # guessed. Fantasy Football Hub is where Ben Crellin and BigManBakar post; an
+    # earlier note here assumed that needed per-person filtering, but the whole
+    # channel is FPL content and a straight per-channel pull works.
+    "fplfocal": "UC72QokPHXQ9r98ROfNZmaDw",
+    "fplmate": "UCweDAlFm2LnVcOqaFU4_AGA",
+    "planetfpl": "UC8043oOKTB4uP8Nq15Kz6bg",
+    "fantasyfootballhub": "UCcqEr3DfrRwtoF2a1yW8qgQ",
+    "fplfamily": "UCDG_EqOaaO1SSxEMZwfrSkg",
+    "aboveaveragefpl": "UCnaJiRMf5hju0TlaeGK5CDQ",
+    "fplsurgery": "UC6ExTqGINJ8M_GPVmVjJubA",
     # Inactive: last upload 2025-09-10, and covering FanTeam rather than FPL. Kept so
     # the decision to drop it is visible rather than silent, but it contributes nothing.
     "giannibuttice": "UCC2c5yVCFu7FKKyt6-_3uLQ",
@@ -166,6 +177,18 @@ def fetch_feed(source: str, url: str) -> list[dict]:
     resp = requests.get(url, timeout=15, headers={"User-Agent": "fpl-decision-engine/1.0"})
     resp.raise_for_status()
     return parse_feed(resp.content, source)
+
+
+def load_muted() -> set[str]:
+    """Read straight from creators.json rather than importing findings.py, so the news
+    fetcher keeps no dependency on the analysis side of the repo."""
+    path = ROOT / "news" / "creators.json"
+    if not path.exists():
+        return set()
+    with open(path) as f:
+        raw = json.load(f)
+    return {slug for slug, row in raw.items()
+            if isinstance(row, dict) and row.get("muted")}
 
 
 def list_channel_uploads(source: str, channel_id: str, limit: int = 15) -> list[dict]:
@@ -376,7 +399,11 @@ def main(skip_transcripts: bool = False) -> None:
     # rate-limited half of this job; when it was one interleaved loop, killing a run
     # part-way through the transcript phase threw away every video it had discovered,
     # because the index was only written at the very end. Twice.
+    muted = load_muted()
     for source, channel_id in VIDEO_CHANNELS.items():
+        if source in muted:
+            print(f"  news: {source} (video) — muted, skipping")
+            continue
         try:
             items = list_channel_uploads(source, channel_id)
         except Exception as exc:  # noqa: BLE001 - one dead channel shouldn't block the others
