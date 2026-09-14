@@ -26,15 +26,18 @@ Success means Joe can answer these questions in under two minutes:
 6. What assumptions or news could reverse the order?
 7. Who should start, captain and sit first on the bench?
 8. Has the forecast and final decision been recorded?
+9. What does a saved transfer route or future Wildcard do to the squad, budget and xP path?
 
 ## Information architecture
 
-The product has four rooms, reached from persistent desktop navigation:
+The product has six rooms, reached from persistent desktop navigation:
 
 1. **My gameweek** — squad, transfer options, captaincy and final checks.
-2. **Expert room** — creator consensus, dissent and verified claims.
-3. **Fixture wall** — Excel-like past-and-future fixture grid for all clubs.
-4. **Model form** — minutes and xP calibration, errors and version history.
+2. **Plan ahead** — saved multi-gameweek transfer routes, Wildcard drafts and parked ideas.
+3. **Expert room** — creator consensus, dissent and verified claims.
+4. **Compare** — player-by-player fixture and xP runs.
+5. **Fixture wall** — Excel-like past-and-future fixture grid for all clubs.
+6. **Model form** — minutes and xP calibration, errors and version history.
 
 “My gameweek” is always the default. The other rooms support the decision; they do not
 compete with it for attention on one endlessly scrolling dashboard.
@@ -67,7 +70,7 @@ is a diagnostic input.
 ## System state model
 
 The interface must never collapse several different meanings of “my team” into one. Every
-squad display carries one of five explicit states:
+squad display carries one of six explicit states:
 
 1. **Last official squad** — public picks saved at the previous deadline. This is the only
    squad the unauthenticated FPL API can currently prove.
@@ -78,6 +81,8 @@ squad display carries one of five explicit states:
 4. **Recorded decision** — the recommendation and runner-up appended to the journal.
 5. **Submitted team** — what Joe actually saved in FPL. Treat this as unknown until it is
    manually confirmed or becomes visible through the following deadline's public picks.
+6. **Saved plan** — an editable local hypothesis containing future moves and chip choices.
+   It is re-evaluated against current projections and never masquerades as a recommendation.
 
 The pitch header names the current state in plain language. “Your squad” alone is not
 enough. A transfer option changes the view to “Selected scenario”; returning to hold
@@ -92,6 +97,7 @@ Read-only means **no changes to the FPL account**, not a passive application. V1
   and any bookmaker-credit use shown before running.
 - Rebuild minutes, projections and decision comparisons without archiving them.
 - Create and compare ephemeral what-if transfer scenarios.
+- Save named multi-gameweek plans, duplicate them, and recalculate them against current data.
 - Append a recommendation, runner-up and rationale to the local decision journal after a
   review step.
 - Open the official FPL site in a separate tab.
@@ -487,6 +493,7 @@ The frontend reads generated artifacts; it does not import or reimplement model 
 - `data/minutes.json`, `projections.json`, `decisions.json`, `evaluation.json`.
 - `news/findings/gwNN_*.jsonl` through a prepared summary rather than browser parsing.
 - `journal/entries.jsonl` and archive-presence metadata.
+- `plans/drafts.json` for authored planning intent and its most recent evaluation metadata.
 
 A small read-only adapter normalizes these files into a frontend view model. It displays
 each artifact's generation time and rejects mixed gameweeks rather than silently combining

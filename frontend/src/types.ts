@@ -97,7 +97,7 @@ export type ExpertPlayerRow = {
   findings: ExpertFinding[]
 }
 
-export type Room = 'gameweek' | 'experts' | 'fixtures' | 'model' | 'compare'
+export type Room = 'gameweek' | 'planning' | 'experts' | 'fixtures' | 'model' | 'compare'
 
 export type Player = {
   id: number
@@ -108,7 +108,7 @@ export type Player = {
   teamShort: string
   position: 'GKP' | 'DEF' | 'MID' | 'FWD'
   opponent: string
-  home: boolean
+  home: boolean | null
   expectedMinutes: number | null
   minutesBands: { p_zero: number; p_1_59: number; p_60_plus: number } | null
   gameweekXP: number | null
@@ -160,7 +160,66 @@ export type Plan = {
 export type PlayerPoolEntry = Pick<Player,
   'id' | 'name' | 'fullName' | 'teamId' | 'team' | 'teamShort' | 'position' |
   'price' | 'expectedMinutes' | 'gameweekXP' | 'opponent' | 'home' | 'status' | 'news'
->
+> & {
+  gameweeks: Array<{
+    gw: number
+    xP: number
+    opponent: string
+    home: boolean | null
+    source: string
+    blank: boolean
+  }>
+}
+
+export type PlanTransfer = { out: number; in: number }
+export type PlanEvent = { gw: number; chip: 'wildcard' | null; transfers: PlanTransfer[] }
+export type PlanIdea = { id: string; gw: number | null; text: string }
+
+export type PlanDraft = {
+  id?: string | null
+  name: string
+  baseGw: number
+  baseAnalysisRunId: string
+  events: PlanEvent[]
+  ideas: PlanIdea[]
+  createdAt?: string
+  updatedAt?: string
+  lastEvaluation?: {
+    analysisRunId: string
+    evaluatedAt: string
+    netXP: number
+    edgeVsHold: number
+  }
+}
+
+export type PlanEvaluationWeek = {
+  gw: number
+  chip: 'wildcard' | null
+  transfers: Array<{
+    out: number; outName: string; in: number; inName: string; position: string
+    salePrice: number; purchasePrice: number
+  }>
+  freeTransfersBefore: number
+  freeTransfersAfter: number
+  hit: number
+  cash: number
+  squad: number[]
+  lineup: Lineup
+}
+
+export type PlanEvaluation = {
+  plan: PlanDraft
+  evaluatedAt: string
+  forecastStartGw: number
+  forecastEndGw: number
+  weeks: PlanEvaluationWeek[]
+  rawXP: number
+  discountedXP: number
+  totalHits: number
+  netXP: number
+  edgeVsHold: number
+  assumptions: string[]
+}
 
 export type Fixture = {
   fixtureId: number

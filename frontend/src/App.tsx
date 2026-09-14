@@ -1,9 +1,12 @@
 import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { deadlineLabel, expectedPoints, fixtureLabel, money, signed, sourceLabel } from './format'
-import type { Analysis, ComparePlayer, ExpertFinding, ExpertPlayerRow, PriceOutlook, Fixture, Plan, Player, PlayerPoolEntry, Room } from './types'
+import type { Analysis, ComparePlayer, ExpertFinding, ExpertPlayerRow, PriceOutlook, Fixture, Plan, Player, Room } from './types'
+import { findPlayer, teamPalette } from './players'
+import { PlanAheadRoom } from './PlanAhead'
 
 const rooms: Array<{ id: Room; label: string; number: string }> = [
   { id: 'gameweek', label: 'My gameweek', number: '01' },
+  { id: 'planning', label: 'Plan ahead', number: '06' },
   { id: 'experts', label: 'Expert room', number: '02' },
   { id: 'compare', label: 'Compare', number: '05' },
   { id: 'fixtures', label: 'Fixture wall', number: '03' },
@@ -11,39 +14,6 @@ const rooms: Array<{ id: Room; label: string; number: string }> = [
 ]
 
 const positionOrder: Player['position'][] = ['GKP', 'DEF', 'MID', 'FWD']
-
-function teamPalette(teamId: number): [string, string] {
-  const palettes: Array<[string, string]> = [
-    ['#cf1538', '#f5f2e8'], ['#6b1439', '#9ed3eb'], ['#b41028', '#171b34'],
-    ['#d51b38', '#f6f2e8'], ['#2457a6', '#f5f2e8'], ['#1744a0', '#f5f2e8'],
-    ['#79bde8', '#6c1739'], ['#17365f', '#f3c857'], ['#17365f', '#f5f2e8'],
-    ['#111827', '#f5f2e8'], ['#ef6a31', '#111827'], ['#17365f', '#f5f2e8'],
-    ['#f3c93b', '#174e8d'], ['#cf1734', '#f5f2e8'], ['#89c9ee', '#f5f2e8'],
-    ['#d91e36', '#f5f2e8'], ['#111827', '#f5f2e8'], ['#d91e36', '#f5f2e8'],
-    ['#f5f2e8', '#17365f'], ['#efc727', '#111827'],
-  ]
-  return palettes[(teamId - 1) % palettes.length]
-}
-
-function poolPlayer(player: PlayerPoolEntry): Player {
-  return {
-    ...player,
-    minutesBands: null,
-    warnings: [
-      ...(player.news ? [player.news] : []),
-      ...(player.status !== 'a' ? ['Availability is flagged'] : []),
-    ],
-    components: {},
-    setPieceDutyChanges: [],
-  }
-}
-
-function findPlayer(analysis: Analysis, id: number): Player | undefined {
-  return analysis.players[String(id)] ?? (() => {
-    const player = analysis.playerPool.find((row) => row.id === id)
-    return player ? poolPlayer(player) : undefined
-  })()
-}
 
 function App() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
@@ -150,6 +120,7 @@ function App() {
             onCustomPlan={(plan) => { setCustomPlan(plan); setSelectedPlanId('custom') }}
           />
         )}
+        {room === 'planning' && <PlanAheadRoom analysis={analysis} />}
         {room === 'experts' && <ExpertRoom analysis={analysis} selectedPlan={selectedPlan} onSelectPlayer={setSelectedPlayer} />}
         {room === 'compare' && <CompareRoom analysis={analysis} />}
         {room === 'fixtures' && <FixtureWall analysis={analysis} selectedPlan={selectedPlan} />}

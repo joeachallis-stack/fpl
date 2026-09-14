@@ -54,6 +54,7 @@ def test_current_workspace_build_is_coherent_and_shadow_free():
         (frontend_data.DATA / "projections.json").read_text()
     )["players"]
     assert len(analysis["playerPool"]) == len(projection_players)
+    assert all(len(row["gameweeks"]) == 6 for row in analysis["playerPool"])
     assert len(analysis["fixtureWall"]["rows"]) == 20
     assert all(len(row["gameweeks"]) == 38 for row in analysis["fixtureWall"]["rows"])
     assert not contains_shadow(analysis["plans"])

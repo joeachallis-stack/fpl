@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import frontend_data
+import plan_ahead
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
@@ -59,6 +60,12 @@ class DecisionRoomHandler(BaseHTTPRequestHandler):
             except frontend_data.AnalysisInputError as exc:
                 self._send_json(409, {"error": str(exc), "recovery": "Refresh data, then rebuild comparisons."})
             return
+        if path == "/api/plans":
+            try:
+                self._send_json(200, {"plans": plan_ahead.list_plans()})
+            except plan_ahead.PlanError as exc:
+                self._send_json(409, {"error": str(exc)})
+            return
         self._serve_static(path)
 
     def do_POST(self) -> None:  # noqa: N802
@@ -82,6 +89,19 @@ class DecisionRoomHandler(BaseHTTPRequestHandler):
                 body = self._body()
                 self._journal(body)
             except (ValueError, KeyError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/actions/plan/evaluate":
+            try:
+                self._send_json(200, plan_ahead.evaluate_plan(self._body()))
+            except (ValueError, KeyError, json.JSONDecodeError, plan_ahead.PlanError) as exc:
+                self._send_json(400, {"error": str(exc)})
+            return
+        if path == "/api/actions/plan/save":
+            try:
+                saved, evaluation = plan_ahead.save_plan(self._body())
+                self._send_json(200, {"ok": True, "plan": saved, "evaluation": evaluation})
+            except (ValueError, KeyError, json.JSONDecodeError, plan_ahead.PlanError) as exc:
                 self._send_json(400, {"error": str(exc)})
             return
         self._send_json(404, {"error": "Unknown action"})

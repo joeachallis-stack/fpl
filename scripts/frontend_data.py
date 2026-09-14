@@ -934,6 +934,23 @@ def build_analysis(root: Path = ROOT) -> dict:
                     "home": fixture.get("home", projection.get("home")),
                     "status": element.get("status", "a"),
                     "news": element.get("news") or None,
+                    "gameweeks": [
+                        {
+                            "gw": row.get("gw"),
+                            "xP": row.get("xP", 0),
+                            "opponent": " + ".join(
+                                fixture.get("opponent", "—")
+                                for fixture in row.get("fixtures", [])
+                            ) or "—",
+                            "home": (
+                                row.get("fixtures", [{}])[0].get("home")
+                                if len(row.get("fixtures", [])) == 1 else None
+                            ),
+                            "source": row.get("source", "fallback"),
+                            "blank": bool(row.get("blank")),
+                        }
+                        for row in projection.get("gameweeks", [])
+                    ],
                 }
             )
         player_pool.sort(key=lambda row: (row["position"], -float(row["gameweekXP"] or 0), row["name"]))

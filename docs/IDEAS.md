@@ -771,6 +771,18 @@ top-level views are:
   weekly XI/captain choices, source coverage, component explanations and uncertainty.
 - **History and calibration:** actual points/minutes/components, frozen predictions,
   decision outcomes and lead-specific error for the decision-relevant population.
+- **Plan ahead:** save named multi-gameweek transfer routes, schedule a future Wildcard,
+  inspect the resulting weekly XI/captain/xP, and park possible moves that are not ready
+  to schedule.
+
+**Plan Ahead shipped 2026-09-11.** The local frontend now has a gameweek rail over one
+editable sticker pitch. Ordinary transfers and a future Wildcard cascade into later weeks;
+the Python decision primitives reselect the legal XI, captain, vice and bench each week and
+apply live budget, club, position, hit and banked-transfer rules. Drafts persist in
+`plans/drafts.json` with their source analysis run and are marked stale when the canonical
+forecast changes. Current prices are held constant and labeled as such. Parked move ideas
+persist beside the scheduled route. These plans remain hypotheses, separate from the
+immutable forecast archives, the decision journal and any submitted FPL team.
 
 Avoid an information dump: lead with the decision and the few facts capable of changing
 it, then progressively disclose components, raw claims and historical rows. Visually and
