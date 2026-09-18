@@ -26,6 +26,7 @@ import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, milp
 from scipy.sparse import coo_matrix
 
+import midweek
 import projections
 import state
 
@@ -669,13 +670,16 @@ def names(ids: list[int], players: dict[int, dict]) -> str:
     return ", ".join(players[element]["web_name"] for element in ids)
 
 
-def print_plan(label: str, plan: dict, players: dict[int, dict], details: bool = False) -> None:
+def print_plan(label: str, plan: dict, players: dict[int, dict], details: bool = False,
+               midweek_clubs: set[str] = frozenset()) -> None:
     moves = "hold"
     if plan["transfers_out"]:
         groups = []
         for position in POSITION_ORDER:
             outgoing = [row["name"] for row in plan["transfers_out"] if row["position"] == position]
-            incoming = [row["name"] for row in plan["transfers_in"] if row["position"] == position]
+            # A trailing * marks a buy whose club plays midweek before the first gameweek.
+            incoming = [row["name"] + ("*" if players.get(row["element"], {}).get("team") in midweek_clubs else "")
+                        for row in plan["transfers_in"] if row["position"] == position]
             if outgoing:
                 groups.append(f"{position}: {', '.join(outgoing)} -> {', '.join(incoming)}")
         moves = "; ".join(groups)
@@ -711,7 +715,20 @@ def print_report(payload: dict, details: bool = False) -> None:
         f"bank {money(current['bank'])} | {current['free_transfers']} free transfers"
     )
     print("Prices constrain legality; cash/team value earn no projected points.\n")
-    print_plan("HOLD", payload["hold"], players, details)
+
+    # Shown, never scored: the projections above cannot see any of these matches.
+    with open(DATA_DIR / "bootstrap.json") as f:
+        bootstrap = json.load(f)
+    team_names = {t["id"]: t["name"] for t in bootstrap["teams"]}
+    flags = midweek.before_league(meta["gw"], bootstrap)
+    midweek_clubs = {team_names[team] for team in flags}
+    if flags:
+        print(f"Midweek before GW{meta['gw']} (not in the model; * marks a buy from these clubs):")
+        for team in sorted(flags, key=lambda t: team_names[t]):
+            print(f"  {team_names[team]:<15} {midweek.team_note(team, flags)}")
+        print()
+
+    print_plan("HOLD", payload["hold"], players, details, midweek_clubs)
     for transfer_count in range(1, 6):
         # A constrained search drops counts it cannot satisfy — two forced sales cannot
         # happen in one move — so absent counts are normal, not an error. Say so rather
@@ -722,11 +739,11 @@ def print_report(payload: dict, details: bool = False) -> None:
                 print(f"{transfer_count} transfer      — impossible under the constraints\n")
             continue
         for rank, plan in enumerate(plans, 1):
-            print_plan(f"{transfer_count} transfer #{rank}", plan, players, details)
+            print_plan(f"{transfer_count} transfer #{rank}", plan, players, details, midweek_clubs)
     for chip, plan in payload["chips"].items():
         if plan.get("available") is False:
             continue
-        print_plan(chip.upper(), plan, players, details)
+        print_plan(chip.upper(), plan, players, details, midweek_clubs)
     print("\nNo calibrated robustness margin yet: treat raw leaders as comparisons, not automatic actions.")
     print(f"Full audit: {OUT.relative_to(ROOT)}")
 

@@ -111,7 +111,7 @@ class FreezeStateTests(unittest.TestCase):
         with mock.patch.object(freeze, "pending_resolves", side_effect=[pending, pending]), \
                 mock.patch.object(
                     freeze, "run_script",
-                    side_effect=[(True, "refreshed"), (True, "resolved"), (True, "evaluated")],
+                    side_effect=[(True, "refreshed"), (True, "resolved"), (True, "evaluated"), (True, "scored")],
                 ) as run:
             self.assertTrue(freeze.resolve_settled())
         self.assertEqual(
@@ -120,6 +120,7 @@ class FreezeStateTests(unittest.TestCase):
                 ("fetch_data.py", "--refresh-summaries", "--skip-optional"),
                 ("projections.py", "resolve", "--gw", "4"),
                 ("evaluate.py",),
+                ("creator_minutes.py",),
             ],
         )
 

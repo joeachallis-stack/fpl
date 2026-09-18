@@ -199,6 +199,11 @@ def resolve_settled() -> bool:
     ok, output = run_script("evaluate.py")
     log("  refreshed data/evaluation.json" if ok
         else f"  evaluate FAILED — {output.splitlines()[-1] if output else 'no output'}")
+    # Derived entirely from tracked files, so there is no resolve marker to keep — just
+    # re-score creators' minutes calls against the newly resolved archive.
+    ok, output = run_script("creator_minutes.py")
+    log("  refreshed data/creator_minutes.json" if ok
+        else f"  creator_minutes FAILED — {output.splitlines()[-1] if output else 'no output'}")
     return True
 
 

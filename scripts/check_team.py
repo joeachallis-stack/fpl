@@ -18,6 +18,8 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import midweek
+
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 
@@ -160,6 +162,18 @@ def main() -> None:
             r.fail(f"{name} ({teams[el['team']]}) has no fixture in GW{gw} — blank")
     if clean_xi:
         r.ok(f"all {len(starters)} starters fit and playing in GW{gw}")
+
+    # Midweek football the API can't see. A warning, never a fail: it is context for the
+    # minutes read, not evidence anyone will be rested.
+    flags = midweek.before_league(gw, boot, fixtures)
+    by_team: dict[int, list[str]] = {}
+    for p in squad:
+        el = elements[p["element"]]
+        if el["team"] in flags:
+            tag = "" if p["position"] <= settings["squad_squadplay"] else " (bench)"
+            by_team.setdefault(el["team"], []).append(el["web_name"] + tag)
+    for team, owned in by_team.items():
+        r.warn(f"{', '.join(owned)}: {midweek.team_note(team, flags)}")
 
     doubles = {
         teams[el_team]: len(fx)

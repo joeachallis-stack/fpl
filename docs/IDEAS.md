@@ -1099,6 +1099,49 @@ itself (the diff and the alert) is still open; there's only one day of history s
   is stable and which `history_past` exposes. Joining on `element` would silently match
   the wrong players.
 
+- **Season review for any team ID (idea, 2026-09-15).** For the eventual website: plug in
+  an entry ID, walk its season, surface the high and low points. Everything needed is
+  public and unauthenticated. `entry/{id}/transfers/` has every transfer (in, out, both
+  prices, gameweek, timestamp). `entry/{id}/history/` has per-GW points, bench points,
+  hit cost, rank, bank, value and chips. `entry/{id}/event/{gw}/picks/` has the XI,
+  captain, vice, auto-subs and active chip. `event/{gw}/live/` has every player's points.
+  Candidate moments: each transfer's in-vs-out points over the next 1/3/6 GWs (net of any
+  hit), captain against the best owned alternative, bench points left behind, chip timing
+  against the best window in hindsight, and the biggest rank swings.
+  **Keep luck and judgement separate.** Hindsight alone reads a good decision that
+  lost as a mistake. From GW4 on, `projections/gwNN.json` freezes pre-deadline xP for all
+  658 players, not just Joe's, so any manager's moves can be scored ex-ante ("expected
+  +2.1, got −6") as well as ex-post. GW1–3 have no frozen projections, so that stretch can
+  only ever be hindsight. Limits: past seasons are one total/rank row each; free-hit
+  transfers appear in the list and revert, so they need filtering; rate limits matter
+  for a public site (~40 requests per team per season).
+- **Creator outreach for website growth (idea, 2026-09-15).** Email FPL YouTubers about
+  the site's features and that it's free. Notes for when it's real:
+  - **Lead with something personal.** Creators publish their team IDs, so the season-review
+    idea above can produce each one's own season breakdown to send. That's a much better
+    opener than a feature list.
+  - **The site is built on their content.** The gameweek brief extracts claims from their
+    videos. Before outreach, make sure every claim links back to the source video with a
+    timestamp and never republishes transcripts. That turns attribution into free traffic
+    for them rather than a grievance.
+  - **Scoring creators cuts both ways.** Claim-checking and consensus/dissent views are
+    effectively a public accuracy record. Some creators will love a "most accurate
+    creator" table as content, and others will see it as being graded without consent.
+    Decide the framing before the first email, not after a reply.
+  - **Be a growth engine for them (2026-09-15).** Link their videos as they come in: a
+    "new this week" rail per gameweek, plus every extracted claim on a player page linking
+    to the moment it was said. Most of the data already exists: `news/entries.jsonl` has
+    creator, title, link and publish time for every upload, and each finding carries its
+    `video_id` and a verbatim `quote`. One gap: `fetch_news.py`'s `clean_vtt()` strips cue
+    timestamps, so claims can link to a video but not to the second. Keeping the cue times,
+    or saving the raw VTT beside the text, would let a `quote` resolve to `&t=NNNs`.
+    Captions can be re-fetched later, but not for videos that are deleted or go
+    members-only, so it's cheaper to keep them from now. Clicks from the site show up in
+    each creator's YouTube Studio under external traffic with the domain named, so they'd
+    see the referrals without being told. That's the proof to point at in the outreach
+    email.
+  - **Sequence:** only worth doing once the site has a public URL, the review works for
+    an arbitrary team ID, and there's enough calibration history to show.
 - **Authenticated `my-team` endpoint.** `check_team.py` can only validate the last *saved*
   squad — transfers made in the app since the last deadline are invisible. Fixing that
   needs a session cookie in the repo. Worth it? Probably not for a hobby project, but it's

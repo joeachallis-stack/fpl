@@ -1,0 +1,627 @@
+{
+  "_comment": "Hand-maintained non-Premier League fixtures for PL clubs. The FPL API cannot see these. Displayed beside the numbers by scripts/midweek.py; NOT a model input. Kick-offs converted from UK local time to UTC (BST until 25 Oct 2026). Add rows as cup draws and TV picks are confirmed; an absent club means 'not recorded', not 'no fixture'.",
+  "updated": "2026-09-15",
+  "known_gaps": [
+    "EFL Cup R3 ties not yet dated here: any in the week of 15-17 Sep 2026 other than those listed (e.g. Everton v Wolves, Aston Villa's tie).",
+    "EFL Cup R4 (week of 26-28 Oct 2026): draw on 16 Sep 2026, not yet recorded.",
+    "FA Cup and later EFL Cup rounds, and European knockout rounds, not yet recorded."
+  ],
+  "fixtures": [
+    {
+      "team": "AVL",
+      "competition": "UCL",
+      "opponent": "Club Brugge",
+      "venue": "A",
+      "kickoff_utc": "2026-09-08T16:45:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MCI",
+      "competition": "UCL",
+      "opponent": "Porto",
+      "venue": "A",
+      "kickoff_utc": "2026-09-08T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "ARS",
+      "competition": "UCL",
+      "opponent": "Napoli",
+      "venue": "A",
+      "kickoff_utc": "2026-09-09T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "LIV",
+      "competition": "UCL",
+      "opponent": "Atletico Madrid",
+      "venue": "H",
+      "kickoff_utc": "2026-09-09T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MUN",
+      "competition": "UCL",
+      "opponent": "Sabah FC",
+      "venue": "H",
+      "kickoff_utc": "2026-09-10T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "ARS",
+      "competition": "EFL Cup R3",
+      "opponent": "Ipswich Town",
+      "venue": "A",
+      "kickoff_utc": "2026-09-15T19:00:00Z",
+      "source": "https://lastwordonsports.com/football/2026/09/15/ipswich-town-vs-arsenal/"
+    },
+    {
+      "team": "IPS",
+      "competition": "EFL Cup R3",
+      "opponent": "Arsenal",
+      "venue": "H",
+      "kickoff_utc": "2026-09-15T19:00:00Z",
+      "source": "https://lastwordonsports.com/football/2026/09/15/ipswich-town-vs-arsenal/"
+    },
+    {
+      "team": "LIV",
+      "competition": "EFL Cup R3",
+      "opponent": "Tottenham",
+      "venue": "H",
+      "kickoff_utc": "2026-09-15T19:00:00Z",
+      "source": "https://www.thisisanfield.com/2026/09/liverpool-vs-tottenham-carabao-cup-injuries-team-selection-tv-info/"
+    },
+    {
+      "team": "TOT",
+      "competition": "EFL Cup R3",
+      "opponent": "Liverpool",
+      "venue": "A",
+      "kickoff_utc": "2026-09-15T19:00:00Z",
+      "source": "https://www.thisisanfield.com/2026/09/liverpool-vs-tottenham-carabao-cup-injuries-team-selection-tv-info/"
+    },
+    {
+      "team": "BHA",
+      "competition": "EFL Cup R3",
+      "opponent": "Man Utd",
+      "venue": "A",
+      "kickoff_utc": "2026-09-16T19:00:00Z",
+      "source": "https://www.football365.com/match-preview/man-utd-v-brighton-prediction-preview"
+    },
+    {
+      "team": "MUN",
+      "competition": "EFL Cup R3",
+      "opponent": "Brighton",
+      "venue": "H",
+      "kickoff_utc": "2026-09-16T19:00:00Z",
+      "source": "https://www.football365.com/match-preview/man-utd-v-brighton-prediction-preview"
+    },
+    {
+      "team": "SUN",
+      "competition": "UEL",
+      "opponent": "AZ Alkmaar",
+      "venue": "H",
+      "kickoff_utc": "2026-09-16T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "MCI",
+      "competition": "EFL Cup R3",
+      "opponent": "Norwich City",
+      "venue": "H",
+      "kickoff_utc": "2026-09-17T18:30:00Z",
+      "source": "https://www.mancity.com/news/mens/city-v-norwich-carabao-cup-date-kick-off-time-confirmed-63923530"
+    },
+    {
+      "team": "BOU",
+      "competition": "UEL",
+      "opponent": "Real Sociedad",
+      "venue": "A",
+      "kickoff_utc": "2026-09-17T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "CRY",
+      "competition": "UEL",
+      "opponent": "Lech Poznan",
+      "venue": "H",
+      "kickoff_utc": "2026-09-17T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "ARS",
+      "competition": "UCL",
+      "opponent": "Lille",
+      "venue": "H",
+      "kickoff_utc": "2026-10-13T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MUN",
+      "competition": "UCL",
+      "opponent": "Atletico Madrid",
+      "venue": "A",
+      "kickoff_utc": "2026-10-13T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "LIV",
+      "competition": "UCL",
+      "opponent": "LASK",
+      "venue": "A",
+      "kickoff_utc": "2026-10-14T16:45:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "AVL",
+      "competition": "UCL",
+      "opponent": "Fenerbahce",
+      "venue": "H",
+      "kickoff_utc": "2026-10-14T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MCI",
+      "competition": "UCL",
+      "opponent": "PSG",
+      "venue": "H",
+      "kickoff_utc": "2026-10-14T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "CRY",
+      "competition": "UEL",
+      "opponent": "Lyon",
+      "venue": "A",
+      "kickoff_utc": "2026-10-15T16:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "SUN",
+      "competition": "UEL",
+      "opponent": "Torreense",
+      "venue": "A",
+      "kickoff_utc": "2026-10-15T16:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "BHA",
+      "competition": "UECL",
+      "opponent": "Kauno Zalgiris",
+      "venue": "H",
+      "kickoff_utc": "2026-10-15T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "BOU",
+      "competition": "UEL",
+      "opponent": "Sturm Graz",
+      "venue": "H",
+      "kickoff_utc": "2026-10-15T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "LIV",
+      "competition": "UCL",
+      "opponent": "Villarreal",
+      "venue": "H",
+      "kickoff_utc": "2026-10-20T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MCI",
+      "competition": "UCL",
+      "opponent": "AEK Athens",
+      "venue": "H",
+      "kickoff_utc": "2026-10-20T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MUN",
+      "competition": "UCL",
+      "opponent": "Como",
+      "venue": "A",
+      "kickoff_utc": "2026-10-21T16:45:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "ARS",
+      "competition": "UCL",
+      "opponent": "Bayern Munich",
+      "venue": "A",
+      "kickoff_utc": "2026-10-21T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "AVL",
+      "competition": "UCL",
+      "opponent": "Viking FK",
+      "venue": "H",
+      "kickoff_utc": "2026-10-21T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "BHA",
+      "competition": "UECL",
+      "opponent": "FK Jablonec",
+      "venue": "A",
+      "kickoff_utc": "2026-10-22T16:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "SUN",
+      "competition": "UEL",
+      "opponent": "Lech Poznan",
+      "venue": "A",
+      "kickoff_utc": "2026-10-22T16:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "BOU",
+      "competition": "UEL",
+      "opponent": "AC Milan",
+      "venue": "H",
+      "kickoff_utc": "2026-10-22T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "CRY",
+      "competition": "UEL",
+      "opponent": "Besiktas",
+      "venue": "A",
+      "kickoff_utc": "2026-10-22T19:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "AVL",
+      "competition": "UCL",
+      "opponent": "Barcelona",
+      "venue": "A",
+      "kickoff_utc": "2026-11-03T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MUN",
+      "competition": "UCL",
+      "opponent": "Roma",
+      "venue": "H",
+      "kickoff_utc": "2026-11-03T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "LIV",
+      "competition": "UCL",
+      "opponent": "Fenerbahce",
+      "venue": "A",
+      "kickoff_utc": "2026-11-04T17:45:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "ARS",
+      "competition": "UCL",
+      "opponent": "Slavia Praha",
+      "venue": "A",
+      "kickoff_utc": "2026-11-04T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MCI",
+      "competition": "UCL",
+      "opponent": "RB Leipzig",
+      "venue": "A",
+      "kickoff_utc": "2026-11-04T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "BOU",
+      "competition": "UEL",
+      "opponent": "Sparta Prague",
+      "venue": "A",
+      "kickoff_utc": "2026-11-05T17:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "CRY",
+      "competition": "UEL",
+      "opponent": "Hoffenheim",
+      "venue": "H",
+      "kickoff_utc": "2026-11-05T17:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "BHA",
+      "competition": "UECL",
+      "opponent": "Getafe",
+      "venue": "A",
+      "kickoff_utc": "2026-11-05T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "SUN",
+      "competition": "UEL",
+      "opponent": "Dinamo Zagreb",
+      "venue": "H",
+      "kickoff_utc": "2026-11-05T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "AVL",
+      "competition": "UCL",
+      "opponent": "Galatasaray",
+      "venue": "A",
+      "kickoff_utc": "2026-11-24T17:45:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "ARS",
+      "competition": "UCL",
+      "opponent": "Borussia Dortmund",
+      "venue": "H",
+      "kickoff_utc": "2026-11-24T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MCI",
+      "competition": "UCL",
+      "opponent": "Napoli",
+      "venue": "H",
+      "kickoff_utc": "2026-11-24T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "LIV",
+      "competition": "UCL",
+      "opponent": "Club Brugge",
+      "venue": "A",
+      "kickoff_utc": "2026-11-25T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MUN",
+      "competition": "UCL",
+      "opponent": "Sporting CP",
+      "venue": "A",
+      "kickoff_utc": "2026-11-25T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "BHA",
+      "competition": "UECL",
+      "opponent": "Universitatea Craiova",
+      "venue": "H",
+      "kickoff_utc": "2026-11-26T17:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "BOU",
+      "competition": "UEL",
+      "opponent": "Celta Vigo",
+      "venue": "A",
+      "kickoff_utc": "2026-11-26T17:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "CRY",
+      "competition": "UEL",
+      "opponent": "Real Sociedad",
+      "venue": "H",
+      "kickoff_utc": "2026-11-26T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "SUN",
+      "competition": "UEL",
+      "opponent": "Jagiellonia",
+      "venue": "H",
+      "kickoff_utc": "2026-11-26T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "AVL",
+      "competition": "UCL",
+      "opponent": "PSG",
+      "venue": "H",
+      "kickoff_utc": "2026-12-08T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MCI",
+      "competition": "UCL",
+      "opponent": "Barcelona",
+      "venue": "A",
+      "kickoff_utc": "2026-12-08T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MUN",
+      "competition": "UCL",
+      "opponent": "RB Leipzig",
+      "venue": "H",
+      "kickoff_utc": "2026-12-08T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "ARS",
+      "competition": "UCL",
+      "opponent": "Real Madrid",
+      "venue": "H",
+      "kickoff_utc": "2026-12-09T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "LIV",
+      "competition": "UCL",
+      "opponent": "Porto",
+      "venue": "H",
+      "kickoff_utc": "2026-12-09T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "CRY",
+      "competition": "UEL",
+      "opponent": "Jagiellonia",
+      "venue": "A",
+      "kickoff_utc": "2026-12-10T17:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "BHA",
+      "competition": "UECL",
+      "opponent": "Monaco",
+      "venue": "H",
+      "kickoff_utc": "2026-12-10T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "BOU",
+      "competition": "UEL",
+      "opponent": "Viktoria Plzen",
+      "venue": "H",
+      "kickoff_utc": "2026-12-10T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "SUN",
+      "competition": "UEL",
+      "opponent": "AC Milan",
+      "venue": "A",
+      "kickoff_utc": "2026-12-10T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "BHA",
+      "competition": "UECL",
+      "opponent": "Panathinaikos",
+      "venue": "A",
+      "kickoff_utc": "2026-12-17T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "AVL",
+      "competition": "UCL",
+      "opponent": "Borussia Dortmund",
+      "venue": "H",
+      "kickoff_utc": "2027-01-19T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "LIV",
+      "competition": "UCL",
+      "opponent": "Inter Milan",
+      "venue": "A",
+      "kickoff_utc": "2027-01-19T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "ARS",
+      "competition": "UCL",
+      "opponent": "Real Betis",
+      "venue": "A",
+      "kickoff_utc": "2027-01-20T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MCI",
+      "competition": "UCL",
+      "opponent": "RC Lens",
+      "venue": "A",
+      "kickoff_utc": "2027-01-20T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MUN",
+      "competition": "UCL",
+      "opponent": "Bayern Munich",
+      "venue": "H",
+      "kickoff_utc": "2027-01-20T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "BOU",
+      "competition": "UEL",
+      "opponent": "Lillestrom",
+      "venue": "A",
+      "kickoff_utc": "2027-01-21T17:45:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "CRY",
+      "competition": "UEL",
+      "opponent": "Sparta Prague",
+      "venue": "H",
+      "kickoff_utc": "2027-01-21T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "SUN",
+      "competition": "UEL",
+      "opponent": "Anderlecht",
+      "venue": "A",
+      "kickoff_utc": "2027-01-21T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "ARS",
+      "competition": "UCL",
+      "opponent": "Sabah FC",
+      "venue": "H",
+      "kickoff_utc": "2027-01-27T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "AVL",
+      "competition": "UCL",
+      "opponent": "Slavia Praha",
+      "venue": "A",
+      "kickoff_utc": "2027-01-27T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "LIV",
+      "competition": "UCL",
+      "opponent": "RC Lens",
+      "venue": "H",
+      "kickoff_utc": "2027-01-27T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MCI",
+      "competition": "UCL",
+      "opponent": "Sporting CP",
+      "venue": "H",
+      "kickoff_utc": "2027-01-27T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "MUN",
+      "competition": "UCL",
+      "opponent": "Villarreal",
+      "venue": "A",
+      "kickoff_utc": "2027-01-27T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11945/13578265/champions-league-2026-27-fixtures-dates-schedule-format-and-who-has-qualified-from-premier-league-and-around-europe"
+    },
+    {
+      "team": "BOU",
+      "competition": "UEL",
+      "opponent": "Hapoel Beer-Sheva",
+      "venue": "H",
+      "kickoff_utc": "2027-01-28T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "CRY",
+      "competition": "UEL",
+      "opponent": "Salzburg",
+      "venue": "A",
+      "kickoff_utc": "2027-01-28T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    },
+    {
+      "team": "SUN",
+      "competition": "UEL",
+      "opponent": "Levski Sofia",
+      "venue": "H",
+      "kickoff_utc": "2027-01-28T20:00:00Z",
+      "source": "https://www.skysports.com/football/news/11959/13578346/europa-league-and-conference-league-fixtures-for-celtic-bournemouth-sunderland-crystal-palace-brighton-and-hearts-confirmed"
+    }
+  ]
+}

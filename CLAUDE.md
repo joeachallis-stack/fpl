@@ -115,6 +115,12 @@ scripts/
                         write the trimmed roster the extraction agents use
   consolidate.py      — merge extracted findings, resolve names, check claims against
                         the record, print consensus and dissent per player
+  creator_minutes.py  — score creators' pre-deadline `minutes_call`s against the frozen
+                        minutes model, especially where they disagree; decides whether a
+                        news override layer is worth building. Re-run by freeze.py
+  midweek.py          — European and cup matches shortly before a league gameweek, from
+                        midweek/fixtures.json; shown in check_team.py and decisions.py,
+                        never a model input
   roster.py           — canonical player-name resolution; the authority on identity
   claims.py           — check what a transcript claims against what the data records,
                         plus which gameweek a video is actually about
@@ -162,6 +168,10 @@ data/                 — gitignored cache of fetched API responses
   standings_{id}.json — mini-league standings (leagues under 500 entries only)
   snapshots/           — one dated bootstrap.json per day; the only backfill for set-piece
                         order, which the live API never exposes historically
+midweek/
+  fixtures.json        — hand-maintained UCL/UEL/UECL and domestic cup fixtures for PL
+                        clubs, UTC kick-offs with source URLs. The FPL API has none of
+                        these. Lists its own known gaps; add cup rounds as they're drawn.
 odds/
   odds_*.json          — derived fair probabilities, one file per distinct bookmaker
                         market state. Tracked in git: books price ~a week ahead and
