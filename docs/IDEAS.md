@@ -1099,6 +1099,26 @@ itself (the diff and the alert) is still open; there's only one day of history s
   is stable and which `history_past` exposes. Joining on `element` would silently match
   the wrong players.
 
+- **Planned chips should shape this week's recommendation (idea, 2026-09-18).** In GW5
+  the shortlist's top option was 3 transfers with a −4 hit. It was scored over a
+  six-week horizon that assumes the squad is held to GW10, but Joe is wildcarding in
+  GW6, so almost all of that gain was fictional. Over GW5 alone, the best single move
+  was about +1. Let Joe declare chip intent ("Wildcard GW6", "Bench Boost GW12",
+  "Free Hit GW15") and have `decisions.py` respect it:
+  - **Wildcard in GW N:** score transfers made now only up to GW N−1. Nothing bought
+    today survives the rebuild except by choice, so any gain beyond that is
+    double-counted. The free-transfer bank carries over the wildcard, so the cost of a
+    transfer now is one fewer free transfer in GW N+1.
+  - **Free Hit in GW N:** drop GW N from the held-squad horizon, because the squad
+    reverts. Value that week as the Free Hit squad instead.
+  - **Bench Boost in GW N:** count all 15 players' xP that week, which changes who's
+    worth buying beforehand. Bench quality becomes worth real points.
+  - **Where intent lives:** Plan Ahead already schedules a Wildcard in
+    `plans/drafts.json` (`plan_ahead.py` supports only ordinary transfers and Wildcard
+    today). The simplest path is one declared-intent record that both Plan Ahead and
+    `decisions.py` read, extended to Free Hit and Bench Boost, with the shortlist showing
+    which chip assumption it used. Keep it an explicit declaration, not a guess: the
+    model should never infer that Joe "probably" wildcards.
 - **Season review for any team ID (idea, 2026-09-15).** For the eventual website: plug in
   an entry ID, walk its season, surface the high and low points. Everything needed is
   public and unauthenticated. `entry/{id}/transfers/` has every transfer (in, out, both
