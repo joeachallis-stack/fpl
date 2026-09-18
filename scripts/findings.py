@@ -29,6 +29,9 @@ KINDS = {"news", "read", "stat", "recommendation", "action"}
 HORIZONS = {"this_gw", "next_few", "season"}
 STANCES = {"positive", "negative", "neutral"}
 CONVICTIONS = {"strong", "moderate", "passing"}
+# Per-player call on league minutes in the target gameweek; None means "no call made".
+# Optional on findings extracted before 2026-09-15, which were backfilled from text.
+MINUTES_CALLS = {"starts", "benched", "out", "doubt", None}
 
 VOCABULARY = {
     "topic": TOPICS,
@@ -143,4 +146,11 @@ def validate(rows: list[dict]) -> list[dict]:
                                  "claim": row.get("claim", "")[:70]})
         if not row.get("claim"):
             problems.append({"row": i, "field": "claim", "value": None, "claim": ""})
+        calls = row.get("minutes_call")
+        if calls is not None:
+            bad = [v for v in (calls.values() if isinstance(calls, dict) else [calls])
+                   if v not in MINUTES_CALLS]
+            if bad or not isinstance(calls, dict):
+                problems.append({"row": i, "field": "minutes_call", "value": calls,
+                                 "claim": row.get("claim", "")[:70]})
     return problems

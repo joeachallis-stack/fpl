@@ -41,3 +41,11 @@
 {"video_id": "FObTD-bB3w0", "gw": 4, "findings": 33, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T12:29:12.318821+00:00"}
 {"video_id": "EE_ZRD_shU4", "gw": 4, "findings": 69, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T12:39:43.857934+00:00"}
 {"video_id": "pBPZMJQa5Xg", "gw": 4, "findings": 43, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-10T12:39:43.880691+00:00"}
+{"video_id": "zHEGdbh0wYI", "gw": 5, "findings": 58, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-14T11:50:37.561935+00:00"}
+{"video_id": "nde5iZ4ATX0", "gw": 5, "findings": 19, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-14T11:51:00.950431+00:00"}
+{"video_id": "pR7Kiymksz4", "gw": 5, "findings": 20, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-14T11:51:00.974979+00:00"}
+{"video_id": "scv2aCMH-5s", "gw": 5, "findings": 32, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-14T12:00:49.620899+00:00"}
+{"video_id": "jZMRYnouiXc", "gw": 5, "findings": 48, "model": "sonnet", "status": "complete", "spec_version": "48b2349e39ca", "extracted_at": "2026-09-14T12:00:49.646578+00:00"}
+{"video_id": "nwD1vRjAHgg", "gw": 5, "findings": 31, "model": "sonnet", "status": "complete", "spec_version": "24f8a4cec624", "extracted_at": "2026-09-14T12:27:38.753136+00:00"}
+{"video_id": "vwhhCMqDnJ0", "gw": 5, "findings": 39, "model": "sonnet", "status": "complete", "spec_version": "24f8a4cec624", "extracted_at": "2026-09-15T02:13:00.012382+00:00"}
+{"video_id": "p0-P_Om38K4", "gw": 5, "findings": 41, "model": "sonnet", "status": "complete", "spec_version": "24f8a4cec624", "extracted_at": "2026-09-15T02:13:41.588111+00:00"}

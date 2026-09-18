@@ -75,6 +75,10 @@ timeframe, and collapsing them loses the part that matters.
 Pick the topic the sentence is **primarily** about. "On a wildcard, lock in Calafiori and
 Konsa" is `transfer` — it mentions a chip, it is not about chip strategy.
 
+`stat` is a `kind`, never a `topic`. A cited xGI number is `topic: form, kind: stat`; a
+team's xG conceded is `topic: fixtures, kind: stat`. GW5 batch 1 wrote `topic: stat` six
+times, which drops the finding out of every brief section.
+
 There is no `owned_player` or `target` topic. Whether Joe owns a player is read from his
 actual squad; it is not yours to label, and labelling it left half the corpus with no
 topic at all.
@@ -153,6 +157,31 @@ One object per line, in this shape:
 
 `stance` is one of positive / negative / neutral.
 `conviction` is one of strong / moderate / passing — how firmly it was asserted.
+
+**`minutes_call` — required when `topic` is `minutes`, `injury` or `role`.** An object with
+one key per entry in `players`, stating what the claim asserts about that player's
+*Premier League* minutes in the gameweek you were told you are extracting for:
+
+| value | meaning |
+|---|---|
+| `"starts"` | will start, is nailed, keeps his place |
+| `"benched"` | bench, rotated out of the XI, cameo only |
+| `"out"` | will not feature: injured, suspended, dropped from the squad |
+| `"doubt"` | explicitly uncertain for this gameweek |
+| `null` | makes no call about this gameweek's league minutes |
+
+Use `null` for past matches with no forward statement, cup or European games, a later
+gameweek, and the creator's own FPL bench choices ("I'm benching Muharemović" is about
+Raptor's team, not Leeds's). When unsure between a call and `null`, choose `null`.
+
+```json
+"minutes_call": {"Cherki (Man City, MID)": "starts", "Foden (Man City, MID)": "out"}
+```
+
+This is not a sentiment field and it is not redundant with `stance`. A `stance` can be
+positive about a player's past 90. `minutes_call` exists so that creators' team-news
+reads can be scored against the minutes model after the gameweek. That scoring decides
+whether a news override layer is worth building (`scripts/creator_minutes.py`).
 `quote` must be genuinely verbatim so a claim can be audited. Do not clean it up.
 
 **Name the speaker in every claim.** Your task prompt gives a `speaker:` name for each
