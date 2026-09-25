@@ -1119,6 +1119,33 @@ itself (the diff and the alert) is still open; there's only one day of history s
     `decisions.py` read, extended to Free Hit and Bench Boost, with the shortlist showing
     which chip assumption it used. Keep it an explicit declaration, not a guess: the
     model should never infer that Joe "probably" wildcards.
+  - **Declared chip plan (first-half chips expire after GW19):**
+    - Triple Captain: played GW4 (Palmer).
+    - **Wildcard: GW6** (declared 2026-09-24; deadline Sat 10 Oct 10:00 UTC). Replaces
+      the GW5-era lean to wait for GW7 (journal gw6-1). On 24 Sep the six-GW search had
+      the Wildcard at +32.0 xP over hold and +15.1 over the best three-free-transfer
+      plan. The three banked FTs carry over, so GW7 starts with 4. Squad to be
+      re-solved after the international break (national games run to 6 Oct), not
+      locked early.
+    - Free Hit, Bench Boost: not yet planned. Nothing through GW11 is a blank or a
+      double, so neither has an obvious window yet.
+- **Local model for transcript extraction (idea, 2026-09-24).** Replace the Sonnet agents
+  that turn transcripts into `news/findings/` with the local Qwen 3.6 35B already in
+  Ollama on the Studio ("everyday"): free, and nothing leaves the machine.
+  - **What it does not fix:** downloading captions. The 24 Sep refresh sat for 30+
+    minutes on YouTube 429s. Local Whisper would hit the same limit downloading audio,
+    with bigger files, so it only helps the rare video with no captions at all.
+  - **Why not Laya:** its context is 512 to 1,024 tokens and a transcript runs up to
+    ~20k. Laya stays on its own job in `docs/LAYA_MINUTES_SPEC.md` (short snippets in,
+    p(60+) out).
+  - **Test before adopting:** re-extract GW5 videos Sonnet already did, and compare with
+    the existing checks: roster name resolution, `claims.py` claim accuracy, and
+    `consolidate.py` consensus. Switch only if it's close to Sonnet. Bad findings would
+    quietly skew the creator scoreboard, which is the evidence deciding whether Laya is
+    worth building.
+  - **Open questions:** does Qwen follow the findings schema (including `minutes_call`)
+    reliably? Speed per transcript? Memory: Qwen needs ~38 GB of the Studio's 64 GB, so
+    it can't run alongside other heavy jobs (copy-trade's filter test used ~31 GB).
 - **Season review for any team ID (idea, 2026-09-15).** For the eventual website: plug in
   an entry ID, walk its season, surface the high and low points. Everything needed is
   public and unauthenticated. `entry/{id}/transfers/` has every transfer (in, out, both

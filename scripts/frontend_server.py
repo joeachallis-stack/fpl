@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import os
 import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,6 +25,14 @@ import plan_ahead
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
+
+
+# Browser origins allowed to POST actions. On the Mac Studio the page is served
+# privately over Tailscale HTTPS, so that origin is added via FPL_TRUSTED_ORIGINS
+# (comma-separated).
+TRUSTED_ORIGINS = {"http://127.0.0.1:5173", "http://127.0.0.1:8765"} | {
+    o.strip() for o in os.environ.get("FPL_TRUSTED_ORIGINS", "").split(",") if o.strip()
+}
 
 
 class DecisionRoomHandler(BaseHTTPRequestHandler):
@@ -70,7 +79,7 @@ class DecisionRoomHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         origin = self.headers.get("Origin")
-        if origin and origin not in {"http://127.0.0.1:5173", "http://127.0.0.1:8765"}:
+        if origin and origin not in TRUSTED_ORIGINS:
             self._send_json(403, {"error": "This local action rejected an untrusted browser origin."})
             return
         path = urlparse(self.path).path
