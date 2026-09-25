@@ -234,6 +234,11 @@ break every genuine mention of the player he owns. It has to be read from contex
 the surrounding talk is Newcastle, cheap defenders around 5.0m, or Lewis Hall, it is
 Thiaw. Raptor's "it's Shaw and Hall from Newcastle" names the club outright.
 
+**An alias can be wrong in context too.** `aliases.json` maps "allison" to A.Becker
+(Liverpool GKP), which is right when the talk is about goalkeepers. In a GW6 Villa panel
+(Planet FPL, 2026-09-24) "Allison" was a pacey Villa attacker: **Alysson** (Aston Villa,
+MID). The club being discussed beats the alias table.
+
 Known manglings seen in this corpus: Tzolis appears as "Solanke", "Solis" and "solace";
 Cherki as "Churkey", "Cherokee" and "Traore"; Calafiori as "Califury" and "Counter fury";
 Guéhi as "Gay"; Schade as "Kevin Sharda"; Gvardiol as "Vardyol".
