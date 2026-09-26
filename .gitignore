@@ -7,6 +7,7 @@ __pycache__/
 data/minutes.json
 frontend/node_modules/
 frontend/dist/
+frontend/site/dist/
 frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
